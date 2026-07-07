@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MapPin, Target, Search, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import 'leaflet/dist/leaflet.css'
+import { searchGooglePlaces } from '@/app/actions/geocode'
 
 // Helper to construct a beautiful address string from Photon properties
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,7 +62,7 @@ export function GeofenceMapPicker({
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ display_name: string; lat: string; lon: string }[]>([])
+  const [searchResults, setSearchResults] = useState<{ display_name: string; lat: number | string; lon: number | string }[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
   // Dynamically import Leaflet (SSR safe)
@@ -251,12 +252,44 @@ export function GeofenceMapPicker({
     }
   }
 
-  // Address Search Handler using Photon API (Komoot)
+  // Address Search Handler using Google Maps with free Photon fallback
   async function handleSearch(query: string) {
     if (!query.trim()) return
     setIsSearching(true)
 
-    // Get current map center to bias results toward the visible area
+    try {
+      // 1. Try Google Maps Geocoding API first via Server Action
+      const googleResult = await searchGooglePlaces(query)
+      
+      if (googleResult.results) {
+        if (googleResult.results.length > 0) {
+          setSearchResults(googleResult.results)
+        } else {
+          toast.error("No locations found on Google Maps. Trying fallback search...")
+          await fallbackSearch(query)
+        }
+        return
+      }
+
+      // If Google Maps API key is missing, fall back to Photon search silently
+      if (googleResult.error?.includes('not configured')) {
+        console.info("Google Maps API key not configured. Falling back to Photon Search.")
+        await fallbackSearch(query)
+      } else {
+        // Any other Google API error (e.g. quota limit, bad request)
+        console.warn("Google Geocoding error:", googleResult.error)
+        await fallbackSearch(query)
+      }
+    } catch (error) {
+      console.error("Primary Google search error:", error)
+      await fallbackSearch(query)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Fallback Free Search (Photon/OpenStreetMap)
+  async function fallbackSearch(query: string) {
     let biasParams = ''
     if (mapInstanceRef.current) {
       const center = mapInstanceRef.current.getCenter()
@@ -285,10 +318,8 @@ export function GeofenceMapPicker({
         toast.error("No locations found. Try being more specific or check spelling.")
       }
     } catch (error) {
-      console.error("Search error:", error)
+      console.error("Fallback search error:", error)
       toast.error("An error occurred while searching for the location.")
-    } finally {
-      setIsSearching(false)
     }
   }
 
