@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MapPin, Target } from 'lucide-react'
+import { MapPin, Target, Search, X, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import 'leaflet/dist/leaflet.css'
 
 interface GeofenceMapPickerProps {
   initialLat?: number
@@ -26,6 +28,9 @@ export function GeofenceMapPicker({
   const markerRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const circleRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const LRef = useRef<any>(null)
+
   const [isLoaded, setIsLoaded] = useState(false)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     initialLat && initialLng ? { lat: initialLat, lng: initialLng } : null
@@ -33,12 +38,18 @@ export function GeofenceMapPicker({
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [clickHint, setClickHint] = useState(true)
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ display_name: string; lat: string; lon: string }[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
   // Dynamically import Leaflet (SSR safe)
   useEffect(() => {
     if (typeof window === 'undefined' || mapInstanceRef.current) return
 
     async function initMap() {
       const L = (await import('leaflet')).default
+      LRef.current = L
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -143,6 +154,11 @@ export function GeofenceMapPicker({
         await reverseGeocode(lat, lng)
       })
 
+      // Trigger redraw to fix container rendering/misalignment
+      setTimeout(() => {
+        map.invalidateSize()
+      }, 200)
+
       setIsLoaded(true)
     }
 
@@ -156,6 +172,91 @@ export function GeofenceMapPicker({
       circleRef.current.setRadius(radius)
     }
   }, [radius])
+
+  // Helper to update the map, marker, and circle center
+  const updateMapLocation = async (lat: number, lng: number, address?: string) => {
+    if (!mapInstanceRef.current || !LRef.current) return
+    const L = LRef.current
+    const map = mapInstanceRef.current
+
+    map.setView([lat, lng], 16)
+    setCoords({ lat, lng })
+    setClickHint(false)
+
+    const customIcon = L.divIcon({
+      html: `<div style="
+        width: 32px; height: 32px;
+        background: #3B82F6;
+        border: 3px solid white;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      "></div>`,
+      className: '',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+    })
+
+    if (!markerRef.current) {
+      const marker = L.marker([lat, lng], {
+        icon: customIcon,
+        draggable: true,
+      }).addTo(map)
+      const circle = L.circle([lat, lng], {
+        radius: radius,
+        color: '#3B82F6',
+        fillColor: '#3B82F6',
+        fillOpacity: 0.12,
+        weight: 2,
+      }).addTo(map)
+      markerRef.current = marker
+      circleRef.current = circle
+
+      marker.on('dragend', async () => {
+        const pos = marker.getLatLng()
+        circle.setLatLng(pos)
+        setCoords({ lat: pos.lat, lng: pos.lng })
+        await reverseGeocode(pos.lat, pos.lng)
+      })
+    } else {
+      markerRef.current.setLatLng([lat, lng])
+      circleRef.current.setLatLng([lat, lng])
+    }
+
+    if (address) {
+      onLocationChange(lat, lng, address)
+    } else {
+      await reverseGeocode(lat, lng)
+    }
+  }
+
+  // Address Search Handler
+  async function handleSearch(query: string) {
+    if (!query.trim()) return
+    setIsSearching(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'GeoAttend/1.0',
+          },
+        }
+      )
+      const data = await response.json()
+      if (data && data.length > 0) {
+        setSearchResults(data)
+      } else {
+        toast.error("No locations found for your search query.")
+      }
+    } catch (error) {
+      console.error("Search error:", error)
+      toast.error("An error occurred while searching for the location.")
+    } finally {
+      setIsSearching(false)
+    }
+  }
 
   async function reverseGeocode(lat: number, lng: number) {
     setIsGeocoding(true)
@@ -180,28 +281,106 @@ export function GeofenceMapPicker({
   }
 
   function handleLocateMe() {
-    if (!navigator.geolocation || !mapInstanceRef.current) return
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const lat = pos.coords.latitude
-      const lng = pos.coords.longitude
-
-      mapInstanceRef.current.setView([lat, lng], 17)
-      // Simulate a map click
-      const L = (await import('leaflet')).default
-      mapInstanceRef.current.fire('click', {
-        latlng: L.latLng(lat, lng),
-      })
-    })
+    if (!navigator.geolocation || !mapInstanceRef.current) {
+      toast.error("Geolocation is not supported by your browser.")
+      return
+    }
+    
+    toast.info("Retrieving your current location...")
+    
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        updateMapLocation(lat, lng)
+        toast.success("Location retrieved successfully!")
+      },
+      (error) => {
+        console.error(error)
+        toast.error("Failed to retrieve location. Please check browser location permissions.")
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
-
 
   return (
     <div className="space-y-3">
+      {/* Search Bar */}
+      <div className="relative z-[1001]">
+        <div className="flex gap-2">
+          <div className="relative flex-grow">
+            <input
+              type="text"
+              placeholder="Search address, landmark, or city..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleSearch(searchQuery)
+                }
+              }}
+              className="w-full bg-[#1E293B] border border-[#334155] rounded-lg pl-9 pr-8 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('')
+                  setSearchResults([])
+                }}
+                className="absolute right-3 top-3.5 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSearch(searchQuery)}
+            disabled={isSearching}
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            {isSearching ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Searching
+              </>
+            ) : (
+              'Search'
+            )}
+          </button>
+        </div>
+
+        {/* Search Results Dropdown */}
+        {searchResults.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[#1E293B] border border-[#334155] rounded-lg shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-[2000]">
+            {searchResults.map((result, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  const lat = parseFloat(result.lat)
+                  const lng = parseFloat(result.lon)
+                  updateMapLocation(lat, lng, result.display_name)
+                  setSearchResults([])
+                  setSearchQuery(result.display_name)
+                }}
+                className="w-full text-left px-4 py-2.5 hover:bg-[#334155] border-b border-[#334155] last:border-b-0 text-xs text-slate-200 transition-colors line-clamp-2"
+              >
+                {result.display_name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="relative">
         {/* Map container */}
         <div
           ref={mapRef}
-          className="w-full h-72 rounded-xl overflow-hidden border border-[#334155]"
+          className="w-full h-80 rounded-xl overflow-hidden border border-[#334155]"
           style={{ zIndex: 0 }}
         />
 
@@ -241,21 +420,19 @@ export function GeofenceMapPicker({
 
       {/* Coordinates display */}
       {coords && (
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-[#0F172A] rounded-lg px-3 py-2 border border-[#334155]">
-          <MapPin className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-          <span>
-            {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
-          </span>
+        <div className="flex items-center justify-between text-xs font-mono text-slate-400 bg-[#0F172A] rounded-lg px-3 py-2 border border-[#334155]">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+            <span>
+              Latitude: {coords.lat.toFixed(6)}, Longitude: {coords.lng.toFixed(6)}
+            </span>
+          </div>
           {isGeocoding && (
-            <span className="ml-1 text-slate-600 animate-pulse">· Geocoding…</span>
+            <span className="text-slate-500 animate-pulse flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Geocoding…
+            </span>
           )}
         </div>
-      )}
-
-      {!isLoaded && (
-        <p className="text-xs text-slate-500">
-          Map loads OpenStreetMap tiles — no API key required.
-        </p>
       )}
     </div>
   )
