@@ -14,6 +14,34 @@ const ROLE_ROUTES: Record<string, string> = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Check if environment variables are configured (prevents MIDDLEWARE_INVOCATION_FAILED on Vercel)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return new NextResponse(
+      `<html>
+        <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #f4f4f5; text-align: center; padding: 20px;">
+          <div style="max-width: 500px; padding: 30px; background: #18181b; border: 1px solid #27272a; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <h1 style="color: #ef4444; margin-top: 0; font-size: 24px;">Configuration Required</h1>
+            <p style="color: #a1a1aa; line-height: 1.6; font-size: 15px;">
+              The Supabase environment variables are missing. Please configure them in your <strong>Vercel Project Settings</strong>:
+            </p>
+            <ul style="text-align: left; color: #e4e4e7; margin: 20px 0; padding-left: 20px; font-family: monospace; font-size: 13px; line-height: 1.8;">
+              <li>NEXT_PUBLIC_SUPABASE_URL</li>
+              <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+              <li>SUPABASE_SERVICE_ROLE_KEY</li>
+            </ul>
+            <p style="color: #71717a; font-size: 13px; margin-bottom: 0;">
+              After adding them, trigger a redeployment in Vercel.
+            </p>
+          </div>
+        </body>
+      </html>`,
+      { status: 500, headers: { 'content-type': 'text/html' } }
+    )
+  }
+
   // Allow public routes
   const isPublic = PUBLIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(route + '/')
