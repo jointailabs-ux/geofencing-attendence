@@ -5,6 +5,27 @@ import { MapPin, Target, Search, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import 'leaflet/dist/leaflet.css'
 
+// Helper to construct a beautiful address string from Photon properties
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatPhotonAddress(properties: any) {
+  const parts = []
+  if (properties.name) parts.push(properties.name)
+  if (properties.street) {
+    if (properties.housenumber) {
+      parts.push(`${properties.housenumber} ${properties.street}`)
+    } else {
+      parts.push(properties.street)
+    }
+  }
+  const city = properties.city || properties.town || properties.village
+  if (city) parts.push(city)
+  if (properties.district && properties.district !== city) parts.push(properties.district)
+  if (properties.state) parts.push(properties.state)
+  if (properties.postcode) parts.push(properties.postcode)
+  if (properties.country) parts.push(properties.country)
+  return parts.join(', ')
+}
+
 interface GeofenceMapPickerProps {
   initialLat?: number
   initialLng?: number
@@ -230,25 +251,38 @@ export function GeofenceMapPicker({
     }
   }
 
-  // Address Search Handler
+  // Address Search Handler using Photon API (Komoot)
   async function handleSearch(query: string) {
     if (!query.trim()) return
     setIsSearching(true)
+
+    // Get current map center to bias results toward the visible area
+    let biasParams = ''
+    if (mapInstanceRef.current) {
+      const center = mapInstanceRef.current.getCenter()
+      biasParams = `&lat=${center.lat}&lon=${center.lng}`
+    }
+
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
-        {
-          headers: {
-            'Accept-Language': 'en',
-            'User-Agent': 'GeoAttend/1.0',
-          },
-        }
+        `https://photon.komoot.io/api?q=${encodeURIComponent(query)}${biasParams}&limit=5`
       )
       const data = await response.json()
-      if (data && data.length > 0) {
-        setSearchResults(data)
+      
+      if (data && data.features && data.features.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formattedResults = data.features.map((feature: any) => {
+          const coordinates = feature.geometry.coordinates // [lng, lat]
+          const address = formatPhotonAddress(feature.properties)
+          return {
+            display_name: address,
+            lat: coordinates[1],
+            lon: coordinates[0]
+          }
+        })
+        setSearchResults(formattedResults)
       } else {
-        toast.error("No locations found for your search query.")
+        toast.error("No locations found. Try being more specific or check spelling.")
       }
     } catch (error) {
       console.error("Search error:", error)
@@ -361,8 +395,8 @@ export function GeofenceMapPicker({
                 key={idx}
                 type="button"
                 onClick={() => {
-                  const lat = parseFloat(result.lat)
-                  const lng = parseFloat(result.lon)
+                  const lat = typeof result.lat === 'string' ? parseFloat(result.lat) : result.lat
+                  const lng = typeof result.lon === 'string' ? parseFloat(result.lon) : result.lon
                   updateMapLocation(lat, lng, result.display_name)
                   setSearchResults([])
                   setSearchQuery(result.display_name)
