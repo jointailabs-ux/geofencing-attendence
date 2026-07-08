@@ -22,24 +22,25 @@ export default async function OutletsPage() {
 
   if (!employee) redirect('/login')
 
-  // Fetch outlets with employee counts
-  const { data: outlets } = await supabase
-    .from('outlets')
-    .select('*')
-    .eq('org_id', employee.org_id)
-    .order('created_at', { ascending: false })
-
-  const outletIds = outlets?.map((o) => o.id) ?? []
-  const { data: empCounts } = outletIds.length
-    ? await supabase
-        .from('employees')
-        .select('outlet_id')
-        .in('outlet_id', outletIds)
-        .eq('status', 'active')
-    : { data: [] }
+  // Fetch outlets and active employees in parallel, then group counts in-memory to prevent sequential database queries
+  const [
+    { data: outlets },
+    { data: activeEmployees }
+  ] = await Promise.all([
+    supabase
+      .from('outlets')
+      .select('*')
+      .eq('org_id', employee.org_id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('employees')
+      .select('outlet_id')
+      .eq('org_id', employee.org_id)
+      .eq('status', 'active')
+  ])
 
   const countMap: Record<string, number> = {}
-  empCounts?.forEach((e) => {
+  activeEmployees?.forEach((e) => {
     if (e.outlet_id) countMap[e.outlet_id] = (countMap[e.outlet_id] ?? 0) + 1
   })
 

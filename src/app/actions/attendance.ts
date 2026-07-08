@@ -67,12 +67,19 @@ export async function getOrgAttendanceToday(orgId: string) {
   
   const todayStr = new Date().toISOString().split('T')[0]
   
+  // First get outlets to get their IDs
+  const { data: outlets } = await supabase
+    .from('outlets')
+    .select('id')
+    .eq('org_id', orgId)
+    
+  const outletIds = outlets?.map(o => o.id) || []
+  if (outletIds.length === 0) return []
+
   const { data: logs, error } = await supabase
     .from('attendance_logs')
     .select('*, employee:employees(full_name, role), outlet:outlets(name)')
-    .in('outlet_id', (
-      await supabase.from('outlets').select('id').eq('org_id', orgId)
-    ).data?.map(o => o.id) || [])
+    .in('outlet_id', outletIds)
     .gte('timestamp', `${todayStr}T00:00:00.000Z`)
     .order('timestamp', { ascending: false })
 

@@ -5,63 +5,79 @@ import { createClient } from '@/lib/supabase/server'
 export async function getAdminDashboardStats(orgId: string) {
   const supabase = await createClient()
 
-  // 1. Basic Counts
-  const { count: outletCount } = await supabase.from('outlets').select('*', { count: 'exact', head: true }).eq('org_id', orgId)
-  const { count: employeeCount } = await supabase.from('employees').select('*', { count: 'exact', head: true }).eq('org_id', orgId)
-  
-  // 2. Today's Attendance %
   const todayDateStr = new Date().toISOString().split('T')[0]
   const startOfDay = new Date(todayDateStr).toISOString()
-  
-  const { data: orgOutlets } = await supabase.from('outlets').select('id').eq('org_id', orgId)
-  const outletIds = orgOutlets?.map(o => o.id) || []
-  
-  const { data: checkinsToday } = await supabase
-    .from('attendance_logs')
-    .select('employee_id')
-    .in('outlet_id', outletIds)
-    .eq('type', 'check_in')
-    .gte('timestamp', startOfDay)
-    
+  const currMonth = new Date().getMonth() + 1
+  const currYear = new Date().getFullYear()
+
+  // Run independent queries in parallel to drastically improve page loading speed
+  const [
+    { count: outletCount },
+    { count: employeeCount },
+    { data: checkinsToday },
+    { count: pendingLeaves },
+    { data: currPayroll },
+    { data: outletsStatsData },
+    { data: recentCheckins },
+    { data: recentLeaves }
+  ] = await Promise.all([
+    supabase.from('outlets').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
+    supabase.from('employees').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
+    supabase
+      .from('attendance_logs')
+      .select('employee_id, employee:employees!inner(org_id)')
+      .eq('employee.org_id', orgId)
+      .eq('type', 'check_in')
+      .gte('timestamp', startOfDay),
+    supabase
+      .from('leave_requests')
+      .select('*, employee:employees!inner(org_id)', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .eq('employee.org_id', orgId),
+    supabase
+      .from('payroll_runs')
+      .select('id, payroll_line_items(net_pay)')
+      .eq('org_id', orgId)
+      .eq('month', currMonth)
+      .eq('year', currYear)
+      .maybeSingle(),
+    supabase
+      .from('outlets')
+      .select('id, name, employees(id)')
+      .eq('org_id', orgId),
+    supabase
+      .from('attendance_logs')
+      .select('id, type, timestamp, status, employee:employees!inner(full_name, org_id)')
+      .eq('employee.org_id', orgId)
+      .order('timestamp', { ascending: false })
+      .limit(5),
+    supabase
+      .from('leave_requests')
+      .select('id, created_at, status, employee:employees!inner(full_name, org_id), leave_type:leave_types(name)')
+      .eq('employee.org_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+  ])
+
+  // Calculate unique present employees count today
   const uniquePresent = new Set(checkinsToday?.map(l => l.employee_id)).size
   const attendancePercentage = employeeCount ? Math.round((uniquePresent / employeeCount) * 100) : 0
 
-  // 3. Pending Leave Requests
-  const { count: pendingLeaves } = await supabase
-    .from('leave_requests')
-    .select('*, employee:employees!inner(org_id)', { count: 'exact', head: true })
-    .eq('status', 'pending')
-    .eq('employee.org_id', orgId)
-
-  // 4. Current Month Payroll Cost
-  const currMonth = new Date().getMonth() + 1
-  const currYear = new Date().getFullYear()
-  const { data: currPayroll } = await supabase
-    .from('payroll_runs')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('month', currMonth)
-    .eq('year', currYear)
-    .single()
-    
+  // Calculate current payroll cost
   let payrollCost = 0
-  if (currPayroll) {
-    const { data: lineItems } = await supabase
-      .from('payroll_line_items')
-      .select('net_pay')
-      .eq('payroll_run_id', currPayroll.id)
-    payrollCost = lineItems?.reduce((acc, curr) => acc + Number(curr.net_pay), 0) || 0
+  if (currPayroll && currPayroll.payroll_line_items) {
+    const lineItems = currPayroll.payroll_line_items as unknown as { net_pay: number }[]
+    payrollCost = lineItems.reduce((acc, curr) => acc + Number(curr.net_pay), 0) || 0
   }
 
-  // 5. Per-outlet breakdown
-  const { data: outletsStatsData } = await supabase
-    .from('outlets')
-    .select('id, name, employees(id)')
-    .eq('org_id', orgId)
-    
+  // Per-outlet breakdown
   const outletBreakdown = outletsStatsData?.map(o => {
     const empCount = o.employees?.length || 0
-    const presentCount = checkinsToday?.filter(l => (o.employees as unknown as { id: string }[])?.some(e => e.id === l.employee_id))?.length || 0
+    // checkinsToday has employee_id. Filter by whether employee belongs to this outlet
+    const presentCount = checkinsToday?.filter(l => 
+      (o.employees as unknown as { id: string }[])?.some(e => e.id === l.employee_id)
+    )?.length || 0
+    
     return {
       id: o.id,
       name: o.name,
@@ -70,22 +86,7 @@ export async function getAdminDashboardStats(orgId: string) {
     }
   }) || []
 
-  // 6. Recent Activity Feed
-  const { data: recentCheckins } = await supabase
-    .from('attendance_logs')
-    .select('id, type, timestamp, status, employee:employees!inner(full_name, org_id)')
-    .eq('employee.org_id', orgId)
-    .order('timestamp', { ascending: false })
-    .limit(5)
-    
-  const { data: recentLeaves } = await supabase
-    .from('leave_requests')
-    .select('id, created_at, status, employee:employees!inner(full_name, org_id), leave_type:leave_types(name)')
-    .eq('employee.org_id', orgId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  // Combine and sort
+  // Combine and sort recent activity
   const combinedActivity = [
     ...(recentCheckins || []).map(c => ({
       id: `checkin-${c.id}`,
@@ -158,8 +159,6 @@ export async function getAttendanceTrend(orgId: string) {
     d.setDate(d.getDate() + i)
     const dateStr = d.toISOString().split('T')[0]
     const present = trendMap.get(dateStr)?.size || 0
-    
-    // Only calculate % for weekdays for a cleaner chart (optional, but let's just do raw %)
     const percentage = Math.round((present / totalEmployees) * 100)
     
     trend.push({
@@ -168,51 +167,49 @@ export async function getAttendanceTrend(orgId: string) {
     })
   }
   
-  
   return trend
 }
 
 export async function getManagerDashboardStats(outletId: string) {
   const supabase = await createClient()
 
-  // 1. Employee Count
-  const { count: staffCount } = await supabase
-    .from('employees')
-    .select('*', { count: 'exact', head: true })
-    .eq('outlet_id', outletId)
-    .eq('status', 'active')
-
-  // 2. Pending Leave Approvals
-  const { count: pendingLeaves } = await supabase
-    .from('leave_requests')
-    .select('*, employee:employees!inner(outlet_id)', { count: 'exact', head: true })
-    .eq('status', 'pending')
-    .eq('employee.outlet_id', outletId)
-
-  // 3. Live Roster (Today)
   const todayDateStr = new Date().toISOString().split('T')[0]
   const startOfDay = new Date(todayDateStr).toISOString()
 
-  // All active employees in outlet
-  const { data: employees } = await supabase
-    .from('employees')
-    .select('id, full_name, role')
-    .eq('outlet_id', outletId)
-    .eq('status', 'active')
-
-  // All logs today for outlet
-  const { data: todayLogs } = await supabase
-    .from('attendance_logs')
-    .select('employee_id, type, timestamp, status')
-    .eq('outlet_id', outletId)
-    .gte('timestamp', startOfDay)
-    .order('timestamp', { ascending: true })
+  // Run manager counts and logs in parallel
+  const [
+    { count: staffCount },
+    { count: pendingLeaves },
+    { data: employees },
+    { data: todayLogs }
+  ] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('*', { count: 'exact', head: true })
+      .eq('outlet_id', outletId)
+      .eq('status', 'active'),
+    supabase
+      .from('leave_requests')
+      .select('*, employee:employees!inner(outlet_id)', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .eq('employee.outlet_id', outletId),
+    supabase
+      .from('employees')
+      .select('id, full_name, role')
+      .eq('outlet_id', outletId)
+      .eq('status', 'active'),
+    supabase
+      .from('attendance_logs')
+      .select('employee_id, type, timestamp, status')
+      .eq('outlet_id', outletId)
+      .gte('timestamp', startOfDay)
+      .order('timestamp', { ascending: true })
+  ])
 
   let presentCount = 0
   const roster = employees?.map(emp => {
     const empLogs = todayLogs?.filter(l => l.employee_id === emp.id) || []
     
-    // Determine current status
     let currentStatus: 'checked_in' | 'checked_out' | 'absent' = 'absent'
     let lastLogTime = null
     
@@ -223,7 +220,7 @@ export async function getManagerDashboardStats(outletId: string) {
         presentCount++
       } else {
         currentStatus = 'checked_out'
-        presentCount++ // Still counts as present today
+        presentCount++
       }
       lastLogTime = lastLog.timestamp
     }
@@ -254,27 +251,43 @@ export async function getStaffDashboardStats(employeeId: string) {
   const currMonth = new Date().getMonth() + 1
   const currYear = new Date().getFullYear()
 
-  // 1. This Month's Attendance
   const startOfMonth = new Date(currYear, currMonth - 1, 1).toISOString()
   const endOfMonth = new Date(currYear, currMonth, 0, 23, 59, 59).toISOString()
 
-  const { data: logs } = await supabase
-    .from('attendance_logs')
-    .select('type, timestamp')
-    .eq('employee_id', employeeId)
-    .gte('timestamp', startOfMonth)
-    .lte('timestamp', endOfMonth)
+  // Run all staff dashboard queries in parallel
+  const [
+    { data: logs },
+    { data: leaves },
+    { data: balances },
+    { data: latestPayslip }
+  ] = await Promise.all([
+    supabase
+      .from('attendance_logs')
+      .select('type, timestamp')
+      .eq('employee_id', employeeId)
+      .gte('timestamp', startOfMonth)
+      .lte('timestamp', endOfMonth),
+    supabase
+      .from('leave_requests')
+      .select('start_date, end_date')
+      .eq('employee_id', employeeId)
+      .eq('status', 'approved')
+      .lte('start_date', endOfMonth.split('T')[0])
+      .gte('end_date', startOfMonth.split('T')[0]),
+    supabase
+      .from('leave_balances')
+      .select('total_days, used_days, leave_type:leave_types(name)')
+      .eq('employee_id', employeeId),
+    supabase
+      .from('payroll_line_items')
+      .select('net_pay, payroll_run:payroll_runs(month, year, status)')
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() // Use maybeSingle to prevent database errors when no payslips exist yet
+  ])
 
   const presentDays = new Set((logs || []).filter(l => l.type === 'check_in').map(l => l.timestamp.split('T')[0])).size
-
-  // 2. Leaves taken this month
-  const { data: leaves } = await supabase
-    .from('leave_requests')
-    .select('start_date, end_date')
-    .eq('employee_id', employeeId)
-    .eq('status', 'approved')
-    .lte('start_date', endOfMonth.split('T')[0])
-    .gte('end_date', startOfMonth.split('T')[0])
 
   let leavesTakenThisMonth = 0
   for (const l of (leaves || [])) {
@@ -288,21 +301,6 @@ export async function getStaffDashboardStats(employeeId: string) {
       current.setDate(current.getDate() + 1)
     }
   }
-
-  // 3. Leave Balances Summary
-  const { data: balances } = await supabase
-    .from('leave_balances')
-    .select('total_days, used_days, leave_type:leave_types(name)')
-    .eq('employee_id', employeeId)
-
-  // 4. Latest Payslip Summary
-  const { data: latestPayslip } = await supabase
-    .from('payroll_line_items')
-    .select('net_pay, payroll_run:payroll_runs(month, year, status)')
-    .eq('employee_id', employeeId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
   let latestPayslipData = null
   if (latestPayslip && (latestPayslip.payroll_run as unknown as { status: string })?.status === 'finalized') {

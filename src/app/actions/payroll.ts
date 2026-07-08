@@ -73,28 +73,51 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
     await supabase.from('payroll_line_items').delete().eq('payroll_run_id', runId)
   }
 
-  // Generate line items
-  for (const emp of employees) {
-    // Fetch Attendance
-    const { data: attendance } = await supabase
-      .from('attendance_logs')
-      .select('type, timestamp, status')
-      .eq('employee_id', emp.id)
-      .in('status', ['valid', 'manual_override'])
+  // Generate line items in bulk to fix N+1 query performance bottleneck
+  const empIds = employees.map(emp => emp.id)
+  const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0]
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0]
 
-    // Fetch overlapping leaves
-    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0]
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0]
-    
-    const { data: leaves } = await supabase
+  // Query all attendance logs and leave requests for all employees in parallel
+  const [
+    { data: allAttendance, error: attError },
+    { data: allLeaves, error: leaveError }
+  ] = await Promise.all([
+    supabase
+      .from('attendance_logs')
+      .select('employee_id, type, timestamp, status')
+      .in('employee_id', empIds)
+      .in('status', ['valid', 'manual_override']),
+    supabase
       .from('leave_requests')
-      .select('start_date, end_date, leave_types(is_paid)')
-      .eq('employee_id', emp.id)
+      .select('employee_id, start_date, end_date, leave_types(is_paid)')
+      .in('employee_id', empIds)
       .eq('status', 'approved')
       .lte('start_date', endDate)
       .gte('end_date', startDate)
+  ])
 
-    const formattedLeaves = (leaves || []).map(l => ({
+  if (attError) throw new Error('Failed to fetch attendance logs: ' + attError.message)
+  if (leaveError) throw new Error('Failed to fetch leave requests: ' + leaveError.message)
+
+  // Index logs and leaves by employee_id for O(1) retrieval
+  const attendanceByEmp: Record<string, typeof allAttendance> = {}
+  allAttendance?.forEach(log => {
+    if (!attendanceByEmp[log.employee_id]) attendanceByEmp[log.employee_id] = []
+    attendanceByEmp[log.employee_id].push(log)
+  })
+
+  const leavesByEmp: Record<string, typeof allLeaves> = {}
+  allLeaves?.forEach(req => {
+    if (!leavesByEmp[req.employee_id]) leavesByEmp[req.employee_id] = []
+    leavesByEmp[req.employee_id].push(req)
+  })
+
+  const lineItemsToInsert = employees.map(emp => {
+    const attendance = attendanceByEmp[emp.id] || []
+    const leaves = leavesByEmp[emp.id] || []
+
+    const formattedLeaves = leaves.map(l => ({
       start_date: l.start_date,
       end_date: l.end_date,
       is_paid: Boolean((l.leave_types as unknown as { is_paid: boolean })?.is_paid)
@@ -106,12 +129,11 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
       month, 
       year, 
       totalWorkingDays, 
-      (attendance || []) as unknown as PayrollAttendance[], 
+      attendance as unknown as PayrollAttendance[], 
       formattedLeaves
     )
 
-    // Insert line item
-    await supabase.from('payroll_line_items').insert({
+    return {
       payroll_run_id: runId,
       employee_id: emp.id,
       days_present: calc.days_present,
@@ -120,7 +142,17 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
       days_absent_unexcused: calc.days_absent_unexcused,
       base_pay: calc.base_pay,
       net_pay: calc.base_pay // Init net_pay = base_pay
-    })
+    }
+  })
+
+  // Bulk insert all line items at once
+  const { error: insertError } = await supabase
+    .from('payroll_line_items')
+    .insert(lineItemsToInsert)
+
+  if (insertError) {
+    console.error('Error batch inserting payroll line items:', insertError.message)
+    throw new Error('Failed to save payroll line items: ' + insertError.message)
   }
 
   return { success: true, runId }

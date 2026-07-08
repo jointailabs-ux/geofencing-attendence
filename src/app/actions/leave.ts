@@ -15,24 +15,32 @@ export async function getLeaveBalances(employeeId: string, year: number) {
   const { data: types } = await supabase.from('leave_types').select('*').eq('org_id', employee.org_id)
   if (!types || types.length === 0) return []
 
-  // Ensure balances exist for this year
-  for (const t of types) {
-    const { data: balance } = await supabase
-      .from('leave_balances')
-      .select('id')
-      .eq('employee_id', employeeId)
-      .eq('leave_type_id', t.id)
-      .eq('year', year)
-      .single()
+  // Optimize: Bulk check existing balances for this year to avoid N sequential queries
+  const { data: existingBalances } = await supabase
+    .from('leave_balances')
+    .select('leave_type_id')
+    .eq('employee_id', employeeId)
+    .eq('year', year)
 
-    if (!balance) {
-      await supabase.from('leave_balances').insert({
-        employee_id: employeeId,
-        leave_type_id: t.id,
-        year: year,
-        allocated_days: t.annual_allocation_days,
-        used_days: 0,
-      })
+  const existingTypeIds = new Set(existingBalances?.map(b => b.leave_type_id) || [])
+  const missingBalances = types.filter(t => !existingTypeIds.has(t.id))
+
+  // Optimize: Batch insert missing balances in a single query
+  if (missingBalances.length > 0) {
+    const { error: insertError } = await supabase
+      .from('leave_balances')
+      .insert(
+        missingBalances.map(t => ({
+          employee_id: employeeId,
+          leave_type_id: t.id,
+          year: year,
+          allocated_days: t.annual_allocation_days,
+          used_days: 0,
+        }))
+      )
+    
+    if (insertError) {
+      console.error('Error inserting missing balances in batch:', insertError.message)
     }
   }
 

@@ -92,7 +92,7 @@
 
   /* ── Cards ── */
   .geo-card {
-    @apply bg-[#1E293B] border border-[#334155] rounded-xl p-5;
+    @apply bg-[#1E293B] border border-[#334155] rounded-xl p-5 transition-all duration-300 hover:border-slate-500/80 hover:shadow-lg hover:shadow-black/20;
   }
   .geo-card-header {
     @apply flex items-center justify-between mb-4;
@@ -141,6 +141,14 @@
            text-white placeholder:text-slate-500 text-sm
            focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
            transition-colors;
+  }
+  select.field-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+    padding-right: 2.5rem;
   }
   .field-error {
     @apply text-xs text-danger mt-1;
