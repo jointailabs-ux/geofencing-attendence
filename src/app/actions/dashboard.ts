@@ -25,13 +25,13 @@ export async function getAdminDashboardStats(orgId: string) {
     supabase.from('employees').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
     supabase
       .from('attendance_logs')
-      .select('employee_id, employee:employees!inner(org_id)')
+      .select('employee_id, employee:employees!attendance_logs_employee_id_fkey!inner(org_id)')
       .eq('employee.org_id', orgId)
       .eq('type', 'check_in')
       .gte('timestamp', startOfDay),
     supabase
       .from('leave_requests')
-      .select('*, employee:employees!inner(org_id)', { count: 'exact', head: true })
+      .select('*, employee:employees!leave_requests_employee_id_fkey!inner(org_id)', { count: 'exact', head: true })
       .eq('status', 'pending')
       .eq('employee.org_id', orgId),
     supabase
@@ -47,13 +47,13 @@ export async function getAdminDashboardStats(orgId: string) {
       .eq('org_id', orgId),
     supabase
       .from('attendance_logs')
-      .select('id, type, timestamp, status, employee:employees!inner(full_name, org_id)')
+      .select('id, type, timestamp, status, employee:employees!attendance_logs_employee_id_fkey!inner(full_name, org_id)')
       .eq('employee.org_id', orgId)
       .order('timestamp', { ascending: false })
       .limit(5),
     supabase
       .from('leave_requests')
-      .select('id, created_at, status, employee:employees!inner(full_name, org_id), leave_type:leave_types(name)')
+      .select('id, created_at, status, employee:employees!leave_requests_employee_id_fkey!inner(full_name, org_id), leave_type:leave_types(name)')
       .eq('employee.org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(5)
@@ -190,7 +190,7 @@ export async function getManagerDashboardStats(outletId: string) {
       .eq('status', 'active'),
     supabase
       .from('leave_requests')
-      .select('*, employee:employees!inner(outlet_id)', { count: 'exact', head: true })
+      .select('*, employee:employees!leave_requests_employee_id_fkey!inner(outlet_id)', { count: 'exact', head: true })
       .eq('status', 'pending')
       .eq('employee.outlet_id', outletId),
     supabase

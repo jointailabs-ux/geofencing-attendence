@@ -65,7 +65,7 @@ export async function getMyLeaveRequests(employeeId: string) {
   
   const { data, error } = await supabase
     .from('leave_requests')
-    .select('*, leave_type:leave_types(*), approver:employees(full_name)')
+    .select('*, leave_type:leave_types(*), approver:employees!leave_requests_approved_by_fkey(full_name)')
     .eq('employee_id', employeeId)
     .order('created_at', { ascending: false })
 
@@ -137,7 +137,7 @@ export async function getPendingLeaveRequests(orgId: string, outletId?: string |
   
   const query = supabase
     .from('leave_requests')
-    .select('*, employee:employees(id, full_name, role, outlet_id), leave_type:leave_types(*)')
+    .select('*, employee:employees!leave_requests_employee_id_fkey(id, full_name, role, outlet_id), leave_type:leave_types(*)')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
 
@@ -223,7 +223,7 @@ export async function getTeamLeaveCalendar(orgId: string, month: number, year: n
 
   const { data, error } = await supabase
     .from('leave_requests')
-    .select('*, employee:employees(id, full_name, outlet_id), leave_type:leave_types(name)')
+    .select('*, employee:employees!leave_requests_employee_id_fkey(id, full_name, outlet_id), leave_type:leave_types(name)')
     .eq('status', 'approved')
     .lte('start_date', endDate)
     .gte('end_date', startDate)

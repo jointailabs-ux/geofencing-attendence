@@ -49,7 +49,7 @@ export async function getOutletAttendanceToday(outletId: string) {
   
   const { data: logs, error } = await supabase
     .from('attendance_logs')
-    .select('*, employee:employees(full_name, role)')
+    .select('*, employee:employees!attendance_logs_employee_id_fkey(full_name, role)')
     .eq('outlet_id', outletId)
     .gte('timestamp', `${todayStr}T00:00:00.000Z`)
     .order('timestamp', { ascending: false })
@@ -78,7 +78,7 @@ export async function getOrgAttendanceToday(orgId: string) {
 
   const { data: logs, error } = await supabase
     .from('attendance_logs')
-    .select('*, employee:employees(full_name, role), outlet:outlets(name)')
+    .select('*, employee:employees!attendance_logs_employee_id_fkey(full_name, role), outlet:outlets(name)')
     .in('outlet_id', outletIds)
     .gte('timestamp', `${todayStr}T00:00:00.000Z`)
     .order('timestamp', { ascending: false })
