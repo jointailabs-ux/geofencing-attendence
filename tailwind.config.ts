@@ -10,32 +10,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // GeoAttend design tokens
+        // GeoAttend Red theme tokens
         navy: {
-          DEFAULT: '#0F172A',
-          50: '#1E293B',
-          100: '#0F172A',
-          200: '#0A1020',
+          DEFAULT: '#090505',
+          50: '#150A0A',
+          100: '#090505',
+          200: '#050202',
         },
         slate: {
-          DEFAULT: '#1E293B',
-          50: '#334155',
-          100: '#1E293B',
-          200: '#0F172A',
-          300: '#475569',
-          400: '#64748B',
-          500: '#94A3B8',
-          600: '#CBD5E1',
-          700: '#E2E8F0',
-          800: '#F1F5F9',
-          900: '#F8FAFC',
+          DEFAULT: '#1A1111',
+          50: '#2A1C1C',
+          100: '#1A1111',
+          200: '#0F0909',
+          300: '#402E2E',
+          400: '#664A4A',
+          500: '#8C6868',
+          600: '#B38B8B',
+          700: '#D9B3B3',
+          800: '#F2DCDC',
+          900: '#FAEDED',
         },
-        steel: '#334155',
+        steel: '#2A1C1C',
         accent: {
-          DEFAULT: '#3B82F6',
-          hover: '#2563EB',
-          light: '#DBEAFE',
-          muted: '#1D4ED8',
+          DEFAULT: '#EF4444', // Red-500
+          hover: '#DC2626',   // Red-600
+          light: '#FEE2E2',   // Red-100
+          muted: '#991B1B',   // Red-800
         },
         valid: {
           DEFAULT: '#10B981',
@@ -52,7 +52,7 @@ const config: Config = {
           light: '#FEE2E2',
           dark: '#DC2626',
         },
-        muted: '#94A3B8',
+        muted: '#8C6868',
         // shadcn/ui CSS variable references
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',

@@ -6,37 +6,37 @@
 
 @layer base {
   :root {
-    /* shadcn/ui CSS variables — mapped to GeoAttend dark theme */
-    --background: 222 47% 7%;
-    --foreground: 213 31% 91%;
-    --card: 222 47% 11%;
-    --card-foreground: 213 31% 91%;
-    --popover: 222 47% 9%;
-    --popover-foreground: 213 31% 91%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 7%;
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 213 31% 91%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 215 28% 17%;
-    --accent-foreground: 213 31% 91%;
+    /* shadcn/ui CSS variables — mapped to GeoAttend red theme */
+    --background: 0 47% 5%;
+    --foreground: 0 31% 91%;
+    --card: 0 47% 9%;
+    --card-foreground: 0 31% 91%;
+    --popover: 0 47% 7%;
+    --popover-foreground: 0 31% 91%;
+    --primary: 0 84% 60%;
+    --primary-foreground: 0 47% 5%;
+    --secondary: 0 28% 15%;
+    --secondary-foreground: 0 31% 91%;
+    --muted: 0 28% 15%;
+    --muted-foreground: 0 20% 65%;
+    --accent: 0 28% 15%;
+    --accent-foreground: 0 31% 91%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 213 31% 91%;
-    --border: 215 25% 22%;
-    --input: 215 25% 17%;
-    --ring: 217 91% 60%;
+    --destructive-foreground: 0 31% 91%;
+    --border: 0 25% 18%;
+    --input: 0 25% 15%;
+    --ring: 0 84% 60%;
     --radius: 0.5rem;
 
     /* GeoAttend custom tokens */
-    --color-navy: #0F172A;
-    --color-slate: #1E293B;
-    --color-steel: #334155;
-    --color-accent: #3B82F6;
+    --color-navy: #090505;
+    --color-slate: #1A1111;
+    --color-steel: #2A1C1C;
+    --color-accent: #EF4444; /* Vibrant Red */
     --color-valid: #10B981;
     --color-warn: #F59E0B;
     --color-danger: #EF4444;
-    --color-muted: #94A3B8;
+    --color-muted: #8C6868;
 
     /* Sidebar */
     --sidebar-width: 256px;
@@ -53,7 +53,9 @@
   }
 
   body {
-    @apply bg-[#0F172A] text-slate-200 text-sm;
+    /* Rich radial gradient background for lucrative feel */
+    background: radial-gradient(circle at top right, #2A1111 0%, #090505 50%, #050202 100%);
+    @apply text-slate-200 text-sm min-h-screen bg-fixed;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
@@ -63,18 +65,18 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-[#1E293B];
+    @apply bg-[#150A0A];
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-[#334155] rounded-full;
+    @apply bg-[#2A1C1C] rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-[#475569];
+    @apply bg-[#402E2E];
   }
 
   /* Focus ring */
   :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-[#0F172A];
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-[#090505];
   }
 }
 
@@ -90,9 +92,13 @@
     @apply text-sm text-slate-400 mt-0.5;
   }
 
-  /* ── Cards ── */
+  /* ── Cards (Glassmorphism & Lucrative glowing borders) ── */
   .geo-card {
-    @apply bg-[#1E293B] border border-[#334155] rounded-xl p-5 transition-all duration-300 hover:border-slate-500/80 hover:shadow-lg hover:shadow-black/20;
+    background: rgba(26, 17, 17, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    @apply rounded-xl p-5 transition-all duration-300 hover:border-accent/50 hover:shadow-[0_0_20px_rgba(239,68,68,0.15)];
   }
   .geo-card-header {
     @apply flex items-center justify-between mb-4;
