@@ -32,6 +32,7 @@ export interface Employee {
   org_id: string
   outlet_id: string | null
   auth_user_id: string | null
+  employee_code: string | null
   full_name: string
   phone: string | null
   email: string

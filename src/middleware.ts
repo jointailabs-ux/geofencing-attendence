@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/signup', '/auth/callback']
+const PUBLIC_ROUTES = ['/login', '/auth/callback']
 
 // Role → default route mapping
 const ROLE_ROUTES: Record<string, string> = {

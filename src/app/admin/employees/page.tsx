@@ -59,7 +59,7 @@ export default async function EmployeesPage() {
             <Users className="empty-state-icon" />
             <h2 className="empty-state-title">No employees yet</h2>
             <p className="empty-state-description">
-              Add your first employee. They&apos;ll receive an email invite to set their password.
+              Add your first employee with their login credentials to get started.
             </p>
             <Link
               href="/admin/employees/new"

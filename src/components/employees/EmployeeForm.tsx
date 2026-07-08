@@ -8,19 +8,27 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { createEmployee, updateEmployee } from '@/app/actions/employees'
 import type { Employee, Outlet, EmployeeRole } from '@/lib/types/database'
-import { ArrowLeft, UserPlus, Loader2, Mail } from 'lucide-react'
+import { ArrowLeft, UserPlus, Loader2, Shield, Eye, EyeOff } from 'lucide-react'
 
 const employeeSchema = z.object({
+  employee_code: z.string().min(1, 'Employee ID is required').max(20),
   full_name: z.string().min(1, 'Full name is required').max(100),
   email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional().or(z.literal('')),
+  confirm_password: z.string().optional().or(z.literal('')),
   phone: z.string().optional(),
   role: z.enum(['super_admin', 'manager', 'staff']),
   outlet_id: z.string().optional(),
   salary_type: z.enum(['fixed', 'daily', 'hourly']),
   base_salary: z.number().min(0, 'Must be positive'),
   join_date: z.string().min(1, 'Join date is required'),
+}).refine((data) => {
+  if (!data.password && !data.confirm_password) return true
+  return data.password === data.confirm_password
+}, {
+  message: 'Passwords do not match',
+  path: ['confirm_password'],
 })
-
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
 
@@ -44,6 +52,7 @@ const salaryOptions = [
 
 export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const {
     register,
@@ -53,8 +62,11 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
   } = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
+      employee_code: employee?.employee_code ?? '',
       full_name: employee?.full_name ?? '',
       email: employee?.email ?? '',
+      password: '',
+      confirm_password: '',
       phone: employee?.phone ?? '',
       role: employee?.role ?? 'staff',
       outlet_id: employee?.outlet_id ?? '',
@@ -66,16 +78,45 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
 
   const salaryType = watch('salary_type')
   const selectedRole = watch('role')
+  const passwordValue = watch('password')
 
   const salaryLabel =
     salaryType === 'fixed' ? 'Monthly Salary (₹)' :
     salaryType === 'daily' ? 'Daily Rate (₹)' : 'Hourly Rate (₹)'
 
+  // Password strength indicator
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return { label: '', color: '', width: '0%' }
+    let score = 0
+    if (pass.length >= 8) score++
+    if (pass.length >= 12) score++
+    if (/[A-Z]/.test(pass)) score++
+    if (/[0-9]/.test(pass)) score++
+    if (/[^A-Za-z0-9]/.test(pass)) score++
+    
+    if (score <= 1) return { label: 'Weak', color: 'bg-red-500', width: '20%' }
+    if (score <= 2) return { label: 'Fair', color: 'bg-orange-500', width: '40%' }
+    if (score <= 3) return { label: 'Good', color: 'bg-yellow-500', width: '60%' }
+    if (score <= 4) return { label: 'Strong', color: 'bg-emerald-500', width: '80%' }
+    return { label: 'Very Strong', color: 'bg-emerald-400', width: '100%' }
+  }
+
+  const passwordStrength = getPasswordStrength(passwordValue || '')
+
   async function onSubmit(data: EmployeeFormData) {
     setIsLoading(true)
 
+    // For new employees, password is required
+    if (!employee && (!data.password || data.password.length < 8)) {
+      toast.error('Password is required (min 8 characters) for new employees')
+      setIsLoading(false)
+      return
+    }
+
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
+      if (key === 'confirm_password') return // Don't send confirm_password
+      if (key === 'password' && employee) return // Don't send password on edit
       if (value !== undefined && value !== null && value !== '') {
         formData.append(key, String(value))
       }
@@ -97,7 +138,7 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
           setIsLoading(false)
           return
         }
-        toast.success('Employee invited via email')
+        toast.success('Employee created successfully')
       }
     } catch {
       // server redirect on success
@@ -121,17 +162,17 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
         <p className="page-subtitle">
           {employee
             ? 'Update employee details and settings'
-            : 'An invite email will be sent so they can set their password'}
+            : 'Create a new employee account with login credentials'}
         </p>
       </div>
 
       {!employee && (
         <div className="flex items-start gap-2.5 bg-accent/5 border border-accent/20 rounded-xl px-4 py-3 mb-6">
-          <Mail className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+          <Shield className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-white">Invite via email</p>
+            <p className="text-sm font-medium text-white">Admin-managed credentials</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              A Supabase invite link will be emailed. The employee sets their own password.
+              You set the employee&apos;s email and password. They can log in immediately with these credentials.
             </p>
           </div>
         </div>
@@ -139,12 +180,93 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
 
+        {/* Login Credentials — only for new employees */}
+        {!employee && (
+          <div className="geo-card space-y-4">
+            <h2 className="geo-card-title">Login Credentials</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label htmlFor="email" className="field-label">
+                  Email address *
+                  <span className="text-slate-600 font-normal ml-1">(used for login)</span>
+                </label>
+                <input
+                  id="email"
+                  {...register('email')}
+                  type="email"
+                  placeholder="employee@company.com"
+                  className="field-input"
+                />
+                {errors.email && <p className="field-error">{errors.email.message}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="password" className="field-label">Password *</label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    {...register('password')}
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Min. 8 characters"
+                    className="field-input pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && <p className="field-error">{errors.password.message}</p>}
+                {passwordValue && passwordValue.length > 0 && (
+                  <div className="mt-2">
+                    <div className="h-1.5 bg-[#1E293B] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${passwordStrength.color} transition-all duration-300 rounded-full`}
+                        style={{ width: passwordStrength.width }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{passwordStrength.label}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="confirm_password" className="field-label">Confirm Password *</label>
+                <input
+                  id="confirm_password"
+                  {...register('confirm_password')}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Repeat password"
+                  className="field-input"
+                />
+                {errors.confirm_password && <p className="field-error">{errors.confirm_password.message}</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Personal info */}
         <div className="geo-card space-y-4">
           <h2 className="geo-card-title">Personal Information</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
+            <div>
+              <label htmlFor="employee_code" className="field-label">Employee ID *</label>
+              <input
+                id="employee_code"
+                {...register('employee_code')}
+                type="text"
+                placeholder="EMP001"
+                className="field-input font-mono"
+              />
+              {errors.employee_code && <p className="field-error">{errors.employee_code.message}</p>}
+            </div>
+
+            <div>
               <label htmlFor="full_name" className="field-label">Full name *</label>
               <input
                 id="full_name"
@@ -156,21 +278,18 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
               {errors.full_name && <p className="field-error">{errors.full_name.message}</p>}
             </div>
 
-            <div>
-              <label htmlFor="email" className="field-label">
-                Email address *
-                {!employee && <span className="text-slate-600 font-normal ml-1">(for invite)</span>}
-              </label>
-              <input
-                id="email"
-                {...register('email')}
-                type="email"
-                placeholder="aisha@company.com"
-                disabled={!!employee}
-                className="field-input disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              {errors.email && <p className="field-error">{errors.email.message}</p>}
-            </div>
+            {employee && (
+              <div>
+                <label htmlFor="email" className="field-label">Email address</label>
+                <input
+                  id="email"
+                  {...register('email')}
+                  type="email"
+                  disabled
+                  className="field-input disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            )}
 
             <div>
               <label htmlFor="phone" className="field-label">Phone number</label>
@@ -308,12 +427,12 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {employee ? 'Saving…' : 'Inviting…'}
+                {employee ? 'Saving…' : 'Creating…'}
               </>
             ) : (
               <>
                 <UserPlus className="w-4 h-4" />
-                {employee ? 'Save Changes' : 'Send Invite'}
+                {employee ? 'Save Changes' : 'Create Employee'}
               </>
             )}
           </button>

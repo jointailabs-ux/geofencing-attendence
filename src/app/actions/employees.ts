@@ -6,8 +6,10 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const EmployeeSchema = z.object({
+  employee_code: z.string().min(1, 'Employee ID is required').max(20),
   full_name: z.string().min(1, 'Full name is required').max(100),
   email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   phone: z.string().optional(),
   role: z.enum(['super_admin', 'manager', 'staff']),
   outlet_id: z.string().uuid().optional().or(z.literal('')),
@@ -32,7 +34,7 @@ async function getCallerEmployee() {
   return employee
 }
 
-// ─── Create employee (with Supabase Auth invite) ───────────────────────────────
+// ─── Create employee (Admin creates auth account with password) ─────────────
 export async function createEmployee(formData: FormData) {
   const caller = await getCallerEmployee()
   if (!caller) return { error: 'Unauthorized' }
@@ -41,8 +43,10 @@ export async function createEmployee(formData: FormData) {
   }
 
   const raw = {
+    employee_code: formData.get('employee_code'),
     full_name: formData.get('full_name'),
     email: formData.get('email'),
+    password: formData.get('password') || undefined,
     phone: formData.get('phone') || undefined,
     role: formData.get('role'),
     outlet_id: formData.get('outlet_id') || undefined,
@@ -57,6 +61,11 @@ export async function createEmployee(formData: FormData) {
     return { error: messages }
   }
 
+  // Password is required for new employees
+  if (!parsed.data.password) {
+    return { error: 'Password is required for new employees' }
+  }
+
   // Manager can only create staff in their own outlet
   if (caller.role === 'manager') {
     if (parsed.data.role !== 'staff') {
@@ -67,25 +76,42 @@ export async function createEmployee(formData: FormData) {
 
   const serviceClient = createServiceClient()
 
-  // 1. Invite user via Supabase Auth — sends an email invite
-  const { data: authData, error: authError } = await serviceClient.auth.admin.inviteUserByEmail(
-    parsed.data.email,
-    {
-      data: { full_name: parsed.data.full_name },
-    }
-  )
+  // Check if employee_code is unique within org
+  const { data: existingCode } = await serviceClient
+    .from('employees')
+    .select('id')
+    .eq('org_id', caller.org_id)
+    .eq('employee_code', parsed.data.employee_code)
+    .limit(1)
+
+  if (existingCode && existingCode.length > 0) {
+    return { error: `Employee ID "${parsed.data.employee_code}" is already in use.` }
+  }
+
+  // 1. Create auth user with email + password (no invite email needed)
+  const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    email_confirm: true, // Mark email as verified immediately
+    user_metadata: { full_name: parsed.data.full_name },
+  })
 
   if (authError) {
-    // If user already exists in auth, we can still create the employee record
-    if (!authError.message.includes('already been registered')) {
-      return { error: 'Failed to invite user: ' + authError.message }
+    if (authError.message.includes('already been registered') || authError.message.includes('already exists')) {
+      return { error: 'An account with this email already exists.' }
     }
+    return { error: 'Failed to create user account. Please try again.' }
+  }
+
+  if (!authData.user) {
+    return { error: 'Failed to create user account. Please try again.' }
   }
 
   // 2. Create employee record
   const { error: empError } = await serviceClient.from('employees').insert({
     org_id: caller.org_id,
-    auth_user_id: authData?.user?.id ?? null,
+    auth_user_id: authData.user.id,
+    employee_code: parsed.data.employee_code,
     full_name: parsed.data.full_name,
     email: parsed.data.email,
     phone: parsed.data.phone ?? null,
@@ -97,7 +123,11 @@ export async function createEmployee(formData: FormData) {
     status: 'active',
   })
 
-  if (empError) return { error: empError.message }
+  if (empError) {
+    // Rollback: delete the auth user we just created
+    await serviceClient.auth.admin.deleteUser(authData.user.id)
+    return { error: 'Failed to create employee record. Please try again.' }
+  }
 
   revalidatePath('/admin/employees')
   redirect('/admin/employees')
@@ -109,6 +139,7 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
   if (!caller) return { error: 'Unauthorized' }
 
   const raw = {
+    employee_code: formData.get('employee_code'),
     full_name: formData.get('full_name'),
     email: formData.get('email'),
     phone: formData.get('phone') || undefined,
@@ -119,16 +150,32 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     join_date: formData.get('join_date'),
   }
 
-  const parsed = EmployeeSchema.safeParse(raw)
+  // Password not required for updates
+  const UpdateSchema = EmployeeSchema.omit({ password: true })
+  const parsed = UpdateSchema.safeParse(raw)
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(', ') }
   }
 
   const serviceClient = createServiceClient()
 
+  // Check employee_code uniqueness (exclude current employee)
+  const { data: existingCode } = await serviceClient
+    .from('employees')
+    .select('id')
+    .eq('org_id', caller.org_id)
+    .eq('employee_code', parsed.data.employee_code)
+    .neq('id', employeeId)
+    .limit(1)
+
+  if (existingCode && existingCode.length > 0) {
+    return { error: `Employee ID "${parsed.data.employee_code}" is already in use by another employee.` }
+  }
+
   const { error } = await serviceClient
     .from('employees')
     .update({
+      employee_code: parsed.data.employee_code,
       full_name: parsed.data.full_name,
       phone: parsed.data.phone ?? null,
       role: parsed.data.role,
@@ -140,7 +187,7 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     .eq('id', employeeId)
     .eq('org_id', caller.org_id)
 
-  if (error) return { error: error.message }
+  if (error) return { error: 'Failed to update employee. Please try again.' }
 
   revalidatePath('/admin/employees')
   redirect('/admin/employees')
@@ -152,13 +199,28 @@ export async function deactivateEmployee(employeeId: string) {
   if (!caller) return { error: 'Unauthorized' }
 
   const serviceClient = createServiceClient()
+
+  // Also disable the auth user to prevent login
+  const { data: emp } = await serviceClient
+    .from('employees')
+    .select('auth_user_id')
+    .eq('id', employeeId)
+    .eq('org_id', caller.org_id)
+    .single()
+
+  if (emp?.auth_user_id) {
+    await serviceClient.auth.admin.updateUserById(emp.auth_user_id, {
+      ban_duration: '876000h', // ~100 years effectively permanent ban
+    })
+  }
+
   const { error } = await serviceClient
     .from('employees')
     .update({ status: 'inactive' })
     .eq('id', employeeId)
     .eq('org_id', caller.org_id)
 
-  if (error) return { error: error.message }
+  if (error) return { error: 'Failed to deactivate employee.' }
 
   revalidatePath('/admin/employees')
   return { success: true }
@@ -170,13 +232,28 @@ export async function reactivateEmployee(employeeId: string) {
   if (!caller) return { error: 'Unauthorized' }
 
   const serviceClient = createServiceClient()
+
+  // Unban the auth user
+  const { data: emp } = await serviceClient
+    .from('employees')
+    .select('auth_user_id')
+    .eq('id', employeeId)
+    .eq('org_id', caller.org_id)
+    .single()
+
+  if (emp?.auth_user_id) {
+    await serviceClient.auth.admin.updateUserById(emp.auth_user_id, {
+      ban_duration: 'none',
+    })
+  }
+
   const { error } = await serviceClient
     .from('employees')
     .update({ status: 'active' })
     .eq('id', employeeId)
     .eq('org_id', caller.org_id)
 
-  if (error) return { error: error.message }
+  if (error) return { error: 'Failed to reactivate employee.' }
 
   revalidatePath('/admin/employees')
   return { success: true }

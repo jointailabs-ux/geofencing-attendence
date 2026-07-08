@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { login } from '@/app/actions/auth'
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 
@@ -105,13 +104,10 @@ export default function LoginPage() {
       </form>
 
       <p className="text-center text-sm text-slate-500 mt-6">
-        Setting up a new organization?{' '}
-        <Link
-          href="/signup"
-          className="text-accent hover:text-accent-hover font-medium transition-colors"
-        >
-          Create account
-        </Link>
+        Don&apos;t have an account?{' '}
+        <span className="text-slate-400">
+          Contact your administrator
+        </span>
       </p>
     </div>
   )

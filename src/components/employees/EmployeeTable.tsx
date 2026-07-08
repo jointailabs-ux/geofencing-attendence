@@ -34,7 +34,8 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
     const matchSearch =
       !search ||
       emp.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      emp.email.toLowerCase().includes(search.toLowerCase())
+      emp.email.toLowerCase().includes(search.toLowerCase()) ||
+      (emp.employee_code && emp.employee_code.toLowerCase().includes(search.toLowerCase()))
     const matchOutlet = !filterOutlet || emp.outlet_id === filterOutlet
     const matchStatus = !filterStatus || emp.status === filterStatus
     const matchRole = !filterRole || emp.role === filterRole
@@ -123,6 +124,7 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
               <table className="data-table">
                 <thead>
                   <tr className="bg-[#0F172A]/40">
+                    <th>Emp ID</th>
                     <th>Employee</th>
                     <th>Role</th>
                     <th>Outlet</th>
@@ -135,6 +137,9 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
                 <tbody>
                   {filtered.map((emp) => (
                     <tr key={emp.id} className={cn(emp.status === 'inactive' && 'opacity-60')}>
+                      <td>
+                        <span className="font-mono text-sm text-accent font-semibold">{emp.employee_code || '—'}</span>
+                      </td>
                       <td>
                         <div>
                           <p className="font-semibold text-white">{emp.full_name}</p>
@@ -230,6 +235,9 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
               <div key={emp.id} className={cn('geo-card', emp.status === 'inactive' && 'opacity-60')}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
+                    {emp.employee_code && (
+                      <span className="font-mono text-xs text-accent font-semibold">{emp.employee_code}</span>
+                    )}
                     <p className="font-semibold text-white">{emp.full_name}</p>
                     <p className="text-xs text-slate-500">{emp.email}</p>
                   </div>

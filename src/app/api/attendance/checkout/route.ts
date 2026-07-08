@@ -9,6 +9,11 @@ const checkoutSchema = z.object({
   accuracy: z.number(),
 })
 
+// Security constants
+const MAX_GPS_ACCURACY_METERS = 100
+const MIN_SECONDS_BETWEEN_ACTIONS = 60
+const MIN_SESSION_SECONDS = 60 // Minimum 1 minute between check-in and check-out
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient()
@@ -28,15 +33,27 @@ export async function POST(req: Request) {
 
     const { latitude, longitude, accuracy } = result.data
 
-    // 3. Get employee and outlet details
+    // 3. GPS accuracy gate
+    if (accuracy > MAX_GPS_ACCURACY_METERS) {
+      return NextResponse.json(
+        { error: `GPS signal too weak (±${Math.round(accuracy)}m). Move to an open area and try again.` },
+        { status: 400 }
+      )
+    }
+
+    // 4. Get employee and outlet details
     const { data: employee, error: empError } = await supabase
       .from('employees')
-      .select('id, outlet_id, role, outlets ( latitude, longitude, radius_meters, buffer_meters )')
+      .select('id, outlet_id, role, status, outlets ( latitude, longitude, radius_meters, buffer_meters )')
       .eq('auth_user_id', authData.user.id)
       .single()
 
     if (empError || !employee) {
       return NextResponse.json({ error: 'Employee record not found' }, { status: 404 })
+    }
+
+    if (employee.status === 'inactive') {
+      return NextResponse.json({ error: 'Your account is deactivated. Contact your administrator.' }, { status: 403 })
     }
 
     if (employee.role !== 'staff') {
@@ -54,12 +71,12 @@ export async function POST(req: Request) {
       buffer_meters: number
     }
 
-    // 4. Ensure there is a preceding check-in today, and we haven't already checked out.
+    // 5. Verify check-in exists and enforce rate limiting + minimum session
     const todayStr = new Date().toISOString().split('T')[0]
     
     const { data: lastLogs, error: logsError } = await supabase
       .from('attendance_logs')
-      .select('type')
+      .select('type, timestamp')
       .eq('employee_id', employee.id)
       .gte('timestamp', `${todayStr}T00:00:00.000Z`)
       .order('timestamp', { ascending: false })
@@ -77,16 +94,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Already checked out for the day.' }, { status: 400 })
     }
 
-    // 5. Calculate Haversine distance
+    // Rate limit check
+    const lastActionTime = new Date(lastLogs[0].timestamp).getTime()
+    const now = Date.now()
+    const secondsSinceLast = (now - lastActionTime) / 1000
+
+    if (secondsSinceLast < MIN_SECONDS_BETWEEN_ACTIONS) {
+      const waitSeconds = Math.ceil(MIN_SECONDS_BETWEEN_ACTIONS - secondsSinceLast)
+      return NextResponse.json(
+        { error: `Please wait ${waitSeconds} seconds before your next action.` },
+        { status: 429 }
+      )
+    }
+
+    // Minimum session duration check — prevent accidental immediate checkout
+    if (secondsSinceLast < MIN_SESSION_SECONDS) {
+      return NextResponse.json(
+        { error: 'You must be checked in for at least 1 minute before checking out.' },
+        { status: 400 }
+      )
+    }
+
+    // 6. Calculate Haversine distance
     const distance = Math.round(
       calculateDistance(latitude, longitude, outlet.latitude, outlet.longitude)
     )
 
-    // 6. Determine status
+    // 7. Determine status
     const isWithinGeofence = distance <= outlet.radius_meters + outlet.buffer_meters
     const status = isWithinGeofence ? 'valid' : 'flagged'
 
-    // 7. Insert the log
+    // 8. Insert the log
     const { data: insertData, error: insertError } = await supabase
       .from('attendance_logs')
       .insert({
@@ -103,19 +141,17 @@ export async function POST(req: Request) {
       .single()
 
     if (insertError) {
-      console.error('Insert error:', insertError)
       return NextResponse.json({ error: 'Failed to record check-out' }, { status: 500 })
     }
 
-    // 8. Return response
+    // 9. Return response
     return NextResponse.json({
       success: true,
       log: insertData,
       distance,
       isWithinGeofence,
     })
-  } catch (error) {
-    console.error('Check-out error:', error)
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

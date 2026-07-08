@@ -9,6 +9,10 @@ const checkinSchema = z.object({
   accuracy: z.number(),
 })
 
+// Security constants
+const MAX_GPS_ACCURACY_METERS = 100 // Reject if GPS accuracy is worse than 100m
+const MIN_SECONDS_BETWEEN_ACTIONS = 60 // Rate limit: 1 action per 60 seconds
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient()
@@ -28,10 +32,18 @@ export async function POST(req: Request) {
 
     const { latitude, longitude, accuracy } = result.data
 
-    // 3. Get employee and outlet details
+    // 3. GPS accuracy gate — reject if signal is too weak
+    if (accuracy > MAX_GPS_ACCURACY_METERS) {
+      return NextResponse.json(
+        { error: `GPS signal too weak (±${Math.round(accuracy)}m). Move to an open area and try again.` },
+        { status: 400 }
+      )
+    }
+
+    // 4. Get employee and outlet details
     const { data: employee, error: empError } = await supabase
       .from('employees')
-      .select('id, outlet_id, role, outlets ( latitude, longitude, radius_meters, buffer_meters )')
+      .select('id, outlet_id, role, status, outlets ( latitude, longitude, radius_meters, buffer_meters )')
       .eq('auth_user_id', authData.user.id)
       .single()
 
@@ -39,12 +51,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Employee record not found' }, { status: 404 })
     }
 
+    if (employee.status === 'inactive') {
+      return NextResponse.json({ error: 'Your account is deactivated. Contact your administrator.' }, { status: 403 })
+    }
+
     if (employee.role !== 'staff') {
       return NextResponse.json({ error: 'Only staff can check in' }, { status: 403 })
     }
 
     if (!employee.outlet_id || !employee.outlets) {
-      return NextResponse.json({ error: 'No outlet assigned' }, { status: 400 })
+      return NextResponse.json({ error: 'No outlet assigned. Contact your administrator.' }, { status: 400 })
     }
 
     // Types workaround for supabase joined arrays
@@ -55,12 +71,12 @@ export async function POST(req: Request) {
       buffer_meters: number
     }
 
-    // 4. Ensure no duplicate check-in today (without a checkout)
+    // 5. Rate limiting — prevent rapid double-taps
     const todayStr = new Date().toISOString().split('T')[0]
     
     const { data: lastLogs, error: logsError } = await supabase
       .from('attendance_logs')
-      .select('type')
+      .select('type, timestamp')
       .eq('employee_id', employee.id)
       .gte('timestamp', `${todayStr}T00:00:00.000Z`)
       .order('timestamp', { ascending: false })
@@ -70,20 +86,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to verify previous logs' }, { status: 500 })
     }
 
-    if (lastLogs && lastLogs.length > 0 && lastLogs[0].type === 'check_in') {
-      return NextResponse.json({ error: 'Already checked in. Please check out first.' }, { status: 400 })
+    if (lastLogs && lastLogs.length > 0) {
+      // Check for duplicate check-in
+      if (lastLogs[0].type === 'check_in') {
+        return NextResponse.json({ error: 'Already checked in. Please check out first.' }, { status: 400 })
+      }
+
+      // Rate limit check
+      const lastActionTime = new Date(lastLogs[0].timestamp).getTime()
+      const now = Date.now()
+      const secondsSinceLast = (now - lastActionTime) / 1000
+      if (secondsSinceLast < MIN_SECONDS_BETWEEN_ACTIONS) {
+        const waitSeconds = Math.ceil(MIN_SECONDS_BETWEEN_ACTIONS - secondsSinceLast)
+        return NextResponse.json(
+          { error: `Please wait ${waitSeconds} seconds before your next action.` },
+          { status: 429 }
+        )
+      }
     }
 
-    // 5. Calculate Haversine distance
+    // 6. Calculate Haversine distance
     const distance = Math.round(
       calculateDistance(latitude, longitude, outlet.latitude, outlet.longitude)
     )
 
-    // 6. Determine status
+    // 7. Determine status
     const isWithinGeofence = distance <= outlet.radius_meters + outlet.buffer_meters
     const status = isWithinGeofence ? 'valid' : 'flagged'
 
-    // 7. Insert the log
+    // 8. Insert the log
     const { data: insertData, error: insertError } = await supabase
       .from('attendance_logs')
       .insert({
@@ -100,19 +131,17 @@ export async function POST(req: Request) {
       .single()
 
     if (insertError) {
-      console.error('Insert error:', insertError)
       return NextResponse.json({ error: 'Failed to record check-in' }, { status: 500 })
     }
 
-    // 8. Return response to UI
+    // 9. Return response to UI
     return NextResponse.json({
       success: true,
       log: insertData,
       distance,
       isWithinGeofence,
     })
-  } catch (error) {
-    console.error('Check-in error:', error)
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

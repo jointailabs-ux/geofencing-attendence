@@ -12,6 +12,10 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
+  if (!email || !password) {
+    return { error: 'Email and password are required.' }
+  }
+
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
@@ -20,7 +24,7 @@ export async function login(formData: FormData) {
     if (error.message.includes('Invalid login credentials')) {
       message = 'Email or password is incorrect.'
     } else if (error.message.includes('Email not confirmed')) {
-      message = 'Please verify your email address before logging in.'
+      message = 'Your account has not been activated yet. Contact your administrator.'
     } else if (error.message.includes('Too many requests')) {
       message = 'Too many login attempts. Please wait a few minutes and try again.'
     } else if (error.message.includes('network') || error.message.includes('fetch')) {
@@ -39,11 +43,21 @@ export async function login(formData: FormData) {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('role')
+    .select('role, status')
     .eq('auth_user_id', user.id)
     .single()
 
-  const role = employee?.role ?? 'staff'
+  if (!employee) {
+    await supabase.auth.signOut()
+    return { error: 'No employee record found. Contact your administrator.' }
+  }
+
+  if (employee.status === 'inactive') {
+    await supabase.auth.signOut()
+    return { error: 'Your account has been deactivated. Contact your administrator.' }
+  }
+
+  const role = employee.role ?? 'staff'
 
   const roleRoutes: Record<string, string> = {
     super_admin: '/admin/dashboard',
@@ -55,64 +69,50 @@ export async function login(formData: FormData) {
   redirect(roleRoutes[role] ?? '/staff/dashboard')
 }
 
-// ─── Signup (Super Admin creates organization) ────────────────────────────────
-export async function signup(formData: FormData) {
+// ─── Admin Reset Password ─────────────────────────────────────────────────────
+export async function adminResetPassword(employeeId: string, newPassword: string) {
   const supabase = await createClient()
-  const serviceClient = createServiceClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
 
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const fullName = formData.get('fullName') as string
-  const orgName = formData.get('orgName') as string
-
-  // 1. Create auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName },
-    },
-  })
-
-  if (authError) {
-    if (authError.message.includes('already registered')) {
-      return { error: 'An account with this email already exists.' }
-    }
-    return { error: authError.message }
-  }
-
-  if (!authData.user) return { error: 'Signup failed. Please try again.' }
-
-  // 2. Create organization using service role (bypasses RLS for first-time setup)
-  const { data: org, error: orgError } = await serviceClient
-    .from('organizations')
-    .insert({ name: orgName })
-    .select()
+  // Verify caller is super_admin
+  const { data: caller } = await supabase
+    .from('employees')
+    .select('role')
+    .eq('auth_user_id', user.id)
     .single()
 
-  if (orgError) {
-    return { error: 'Failed to create organization: ' + orgError.message }
+  if (!caller || caller.role !== 'super_admin') {
+    return { error: 'Only administrators can reset passwords.' }
   }
 
-  // 3. Create employee record for super admin
-  const { error: empError } = await serviceClient.from('employees').insert({
-    org_id: org.id,
-    auth_user_id: authData.user.id,
-    full_name: fullName,
-    email: email,
-    role: 'super_admin',
-    salary_type: 'fixed',
-    base_salary: 0,
-    join_date: new Date().toISOString().split('T')[0],
-    status: 'active',
-  })
-
-  if (empError) {
-    return { error: 'Failed to create employee record: ' + empError.message }
+  if (!newPassword || newPassword.length < 8) {
+    return { error: 'Password must be at least 8 characters.' }
   }
 
-  revalidatePath('/', 'layout')
-  redirect('/admin/dashboard')
+  // Get the target employee's auth_user_id
+  const serviceClient = createServiceClient()
+  const { data: targetEmployee } = await serviceClient
+    .from('employees')
+    .select('auth_user_id')
+    .eq('id', employeeId)
+    .single()
+
+  if (!targetEmployee?.auth_user_id) {
+    return { error: 'Employee auth account not found.' }
+  }
+
+  // Reset password via admin API
+  const { error } = await serviceClient.auth.admin.updateUserById(
+    targetEmployee.auth_user_id,
+    { password: newPassword }
+  )
+
+  if (error) {
+    return { error: 'Failed to reset password. Please try again.' }
+  }
+
+  return { success: true }
 }
 
 // ─── Logout ───────────────────────────────────────────────────────────────────

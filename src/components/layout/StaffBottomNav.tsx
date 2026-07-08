@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Clock, ClipboardList, CalendarOff, Banknote } from 'lucide-react'
+import { Clock, ClipboardList, CalendarOff, Banknote, User } from 'lucide-react'
 
 const staffNavItems = [
   { href: '/staff/dashboard', label: 'Clock In/Out', icon: Clock },
-  { href: '/staff/attendance', label: 'My Attendance', icon: ClipboardList },
-  { href: '/staff/leave', label: 'My Leave', icon: CalendarOff },
+  { href: '/staff/attendance', label: 'Attendance', icon: ClipboardList },
+  { href: '/staff/leave', label: 'Leave', icon: CalendarOff },
   { href: '/staff/payslips', label: 'Payslips', icon: Banknote },
+  { href: '/staff/profile', label: 'Profile', icon: User },
 ]
 
 export function StaffBottomNav() {
