@@ -53,8 +53,12 @@
   }
 
   body {
-    /* Rich radial gradient background for lucrative feel */
-    background: radial-gradient(circle at top right, #2A1111 0%, #090505 50%, #050202 100%);
+    /* Lucrative Premium Dark Theme with Neon Glow */
+    background-color: #030000;
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(239, 68, 68, 0.08), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(239, 68, 68, 0.12), transparent 25%),
+      radial-gradient(ellipse at center, #0a0303 0%, #000000 100%);
     @apply text-slate-200 text-sm min-h-screen bg-fixed;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
@@ -65,18 +69,18 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-[#150A0A];
+    @apply bg-[#050505];
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-[#2A1C1C] rounded-full;
+    @apply bg-[#1f0f0f] rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-[#402E2E];
+    @apply bg-[#3d1a1a];
   }
 
   /* Focus ring */
   :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-[#090505];
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-[#000000];
   }
 }
 
@@ -86,19 +90,20 @@
     @apply mb-6;
   }
   .page-title {
-    @apply text-xl font-semibold text-white tracking-tight;
+    @apply text-2xl font-bold text-white tracking-tight;
   }
   .page-subtitle {
-    @apply text-sm text-slate-400 mt-0.5;
+    @apply text-sm text-slate-400 mt-1;
   }
 
   /* ── Cards (Glassmorphism & Lucrative glowing borders) ── */
   .geo-card {
-    background: rgba(26, 17, 17, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    @apply rounded-xl p-5 transition-all duration-300 hover:border-accent/50 hover:shadow-[0_0_20px_rgba(239,68,68,0.15)];
+    background: linear-gradient(145deg, rgba(20, 10, 10, 0.8), rgba(5, 2, 2, 0.9));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    @apply rounded-2xl p-5 transition-all duration-300 hover:border-accent/40 hover:shadow-[0_0_30px_rgba(239,68,68,0.2)];
   }
   .geo-card-header {
     @apply flex items-center justify-between mb-4;
