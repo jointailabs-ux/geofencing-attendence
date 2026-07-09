@@ -89,6 +89,9 @@ const config: Config = {
         'slide-up': 'slideUp 0.2s ease-out',
       },
       keyframes: {
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
