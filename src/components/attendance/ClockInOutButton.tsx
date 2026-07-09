@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { calculateDistance } from '@/lib/utils'
 import { MapPin, Loader2, CheckCircle2, AlertTriangle, Fingerprint } from 'lucide-react'
@@ -23,31 +23,70 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [liveDistance, setLiveDistance] = useState<number | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const autoCheckoutTriggered = useRef(false)
+  const livePosRef = useRef<{ lat: number; lng: number; acc: number } | null>(null)
 
   // Determine current status based on today's logs
-  // Logs are ordered newest first.
   const lastLog = todayLogs.length > 0 ? todayLogs[0] : null
   const canClockIn = !lastLog || lastLog.type === 'check_out'
   const actionText = canClockIn ? 'Clock In' : 'Clock Out'
   const apiRoute = canClockIn ? '/api/attendance/checkin' : '/api/attendance/checkout'
+
+  const isWithinGeofence = liveDistance !== null && outlet !== null && liveDistance <= outlet.radius_meters + outlet.buffer_meters
 
   useEffect(() => {
     if (!outlet) return
 
     let watchId: number
 
-    // Start watching position for live indicator
     if ('geolocation' in navigator) {
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        async (pos) => {
           setGeoError(null)
+          livePosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }
           const dist = calculateDistance(
             pos.coords.latitude,
             pos.coords.longitude,
             outlet.latitude,
             outlet.longitude
           )
-          setLiveDistance(Math.round(dist))
+          const roundedDist = Math.round(dist)
+          setLiveDistance(roundedDist)
+
+          // Auto-checkout logic
+          const maxAllowed = outlet.radius_meters + outlet.buffer_meters
+          if (!canClockIn && roundedDist > maxAllowed && !autoCheckoutTriggered.current) {
+            autoCheckoutTriggered.current = true
+            try {
+              const res = await fetch('/api/attendance/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                  accuracy: pos.coords.accuracy,
+                }),
+              })
+              
+              if (res.ok) {
+                toast.error(
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold">Auto Checkout</p>
+                    <p className="text-sm opacity-90">
+                      You left the geofenced area ({roundedDist}m). You have been automatically checked out.
+                    </p>
+                  </div>,
+                  { duration: 8000 }
+                )
+                router.refresh()
+              } else {
+                // If it failed (e.g. rate limit), allow it to trigger again later
+                autoCheckoutTriggered.current = false
+              }
+            } catch {
+              autoCheckoutTriggered.current = false
+            }
+          }
         },
         (err) => {
           if (err.code === err.PERMISSION_DENIED) {
@@ -69,12 +108,18 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
         navigator.geolocation.clearWatch(watchId)
       }
     }
-  }, [outlet])
+  }, [outlet, canClockIn, router])
 
   async function handleClockAction() {
     if (!outlet) {
       toast.error('No outlet assigned. Contact your manager.')
       return
+    }
+    
+    // Strict Geofence Block for Clock In
+    if (canClockIn && liveDistance !== null && liveDistance > outlet.radius_meters + outlet.buffer_meters) {
+       toast.error(`You are ${liveDistance}m away. You must be within ${outlet.radius_meters + outlet.buffer_meters}m to clock in.`)
+       return
     }
 
     setIsLoading(true)
@@ -86,10 +131,9 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
       return
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(apiRoute, {
+    // Use cached position if available to speed up manual click
+    const submitPosition = (pos: { coords: { latitude: number, longitude: number, accuracy: number } }) => {
+        fetch(apiRoute, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -97,57 +141,50 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
               longitude: pos.coords.longitude,
               accuracy: pos.coords.accuracy,
             }),
+          }).then(async (res) => {
+              const data = await res.json()
+              if (!res.ok) {
+                throw new Error(data.error || 'Failed to submit attendance')
+              }
+              
+              if (data.isWithinGeofence) {
+                toast.success(
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold">{actionText} Successful!</p>
+                    <p className="text-sm opacity-90">
+                      You are {data.distance}m from {outlet.name} (within range).
+                    </p>
+                  </div>,
+                  { icon: <CheckCircle2 className="w-5 h-5 text-valid" /> }
+                )
+              } else {
+                toast.error(`${actionText} recorded outside range (${data.distance}m)`)
+              }
+              router.refresh()
+          }).catch(error => {
+              toast.error(error instanceof Error ? error.message : 'An error occurred')
+          }).finally(() => {
+              setIsLoading(false)
           })
+    }
 
-          const data = await res.json()
-
-          if (!res.ok) {
-            throw new Error(data.error || 'Failed to submit attendance')
-          }
-
-          if (data.isWithinGeofence) {
-            toast.success(
-              <div className="flex flex-col gap-1">
-                <p className="font-semibold">{actionText} Successful!</p>
-                <p className="text-sm opacity-90">
-                  You are {data.distance}m from {outlet.name} (within range).
-                </p>
-              </div>,
-              { icon: <CheckCircle2 className="w-5 h-5 text-valid" /> }
-            )
-          } else {
-            toast.error(
-              <div className="flex flex-col gap-1">
-                <p className="font-semibold">{actionText} Flagged</p>
-                <p className="text-sm opacity-90">
-                  You are {data.distance}m from {outlet.name}, which is outside the allowed range.
-                  Your manager will review this attempt.
-                </p>
-              </div>,
-              { icon: <AlertTriangle className="w-5 h-5 text-warning" />, duration: 6000 }
-            )
-          }
-
-          router.refresh()
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'An error occurred')
-        } finally {
-          setIsLoading(false)
-        }
-      },
-      (err) => {
-        setIsLoading(false)
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error('Location permission denied. Please allow location access in your browser settings.')
-          setGeoError('Location permission denied.')
-        } else if (err.code === err.TIMEOUT) {
-          toast.error('Location request timed out. Please try again.')
-        } else {
-          toast.error('Failed to get your location. Make sure GPS is enabled.')
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    )
+    if (livePosRef.current && livePosRef.current.acc <= 100) {
+        submitPosition({ coords: { latitude: livePosRef.current.lat, longitude: livePosRef.current.lng, accuracy: livePosRef.current.acc } })
+    } else {
+        navigator.geolocation.getCurrentPosition(
+            submitPosition,
+            (err) => {
+              setIsLoading(false)
+              if (err.code === err.PERMISSION_DENIED) {
+                toast.error('Location permission denied.')
+                setGeoError('Location permission denied.')
+              } else {
+                toast.error('Failed to get your location. Make sure GPS is enabled.')
+              }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        )
+    }
   }
 
   if (!outlet) {
@@ -157,8 +194,6 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
       </div>
     )
   }
-
-  const isWithinGeofence = liveDistance !== null && liveDistance <= outlet.radius_meters + outlet.buffer_meters
 
   return (
     <div className="flex flex-col items-center justify-center p-6 bg-[#0F172A] border border-[#1E293B] rounded-2xl shadow-xl">
@@ -174,7 +209,7 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               isWithinGeofence
                 ? 'text-valid bg-valid/10 border border-valid/20'
-                : 'text-warning bg-warning/10 border border-warning/20'
+                : 'text-danger bg-danger/10 border border-danger/20'
             }`}
           >
             <MapPin className="w-4 h-4" />
@@ -193,13 +228,13 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
 
       <button
         onClick={handleClockAction}
-        disabled={isLoading || !!geoError}
+        disabled={isLoading || !!geoError || (canClockIn && !isWithinGeofence)}
         className={`relative group flex flex-col items-center justify-center w-48 h-48 rounded-full transition-all duration-300 ${
-          isLoading || geoError
-            ? 'bg-[#1E293B] cursor-not-allowed opacity-70'
+          isLoading || geoError || (canClockIn && !isWithinGeofence)
+            ? 'bg-[#1E293B] cursor-not-allowed opacity-70 border-4 border-[#334155]'
             : canClockIn
-            ? 'bg-accent hover:bg-accent-hover shadow-[0_0_40px_rgba(59,130,246,0.3)] hover:shadow-[0_0_60px_rgba(59,130,246,0.5)] scale-100 hover:scale-105'
-            : 'bg-danger hover:bg-danger/90 shadow-[0_0_40px_rgba(239,68,68,0.2)] hover:shadow-[0_0_60px_rgba(239,68,68,0.4)] scale-100 hover:scale-105'
+            ? 'bg-accent hover:bg-accent-hover shadow-[0_0_40px_rgba(239,68,68,0.3)] hover:shadow-[0_0_60px_rgba(239,68,68,0.5)] scale-100 hover:scale-105'
+            : 'bg-warn hover:bg-warn/90 shadow-[0_0_40px_rgba(245,158,11,0.2)] hover:shadow-[0_0_60px_rgba(245,158,11,0.4)] scale-100 hover:scale-105'
         }`}
       >
         <div className="absolute inset-2 rounded-full border-2 border-white/20 border-dashed animate-[spin_20s_linear_infinite]" />

@@ -112,7 +112,15 @@ export async function POST(req: Request) {
 
     // 7. Determine status
     const isWithinGeofence = distance <= outlet.radius_meters + outlet.buffer_meters
-    const status = isWithinGeofence ? 'valid' : 'flagged'
+    
+    if (!isWithinGeofence) {
+      return NextResponse.json(
+        { error: `You are ${distance}m away from the outlet. You must be within ${outlet.radius_meters + outlet.buffer_meters}m to clock in.` },
+        { status: 400 }
+      )
+    }
+
+    const status = 'valid'
 
     // 8. Insert the log
     const { data: insertData, error: insertError } = await supabase
