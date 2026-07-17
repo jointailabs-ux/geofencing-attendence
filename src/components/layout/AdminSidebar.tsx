@@ -19,7 +19,6 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
-  Menu,
 } from 'lucide-react'
 
 interface NavItem {
@@ -48,7 +47,6 @@ const adminNavItems: NavItem[] = [
 export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
@@ -56,90 +54,12 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
     await logout()
   }
 
-  const NavContent = () => (
-    <>
-      {/* Logo */}
-      <div className={cn('flex items-center gap-3 px-4 py-5', collapsed && 'justify-center px-2')}
-        style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.1)' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
-          <MapPin className="w-4 h-4 text-white" />
-        </div>
-        {!collapsed && (
-          <div>
-            <span className="text-sm font-bold text-white tracking-tight">GeoAttend</span>
-            <p className="text-[10px] text-slate-500 leading-none mt-0.5">Workforce Platform</p>
-          </div>
-        )}
-      </div>
-
-      {/* Nav items */}
-      <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-        {adminNavItems.map(({ href, label, icon: Icon, color }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMobileOpen(false)}
-              className={cn('nav-item', isActive && 'active', collapsed && 'justify-center px-2')}
-              title={collapsed ? label : undefined}
-              style={isActive ? {
-                background: `linear-gradient(135deg, ${color}18, ${color}08)`,
-                border: `1px solid ${color}30`,
-                boxShadow: `0 0 12px ${color}15`,
-              } : {}}
-            >
-              <Icon className="nav-icon" style={{ color: isActive ? color : undefined }} />
-              {!collapsed && <span>{label}</span>}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* User section */}
-      <div className={cn('p-3', collapsed && 'flex flex-col items-center')}
-        style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)' }}>
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 px-1 mb-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
-                boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
-              }}>
-              <span className="text-xs font-semibold text-violet-400">
-                {userName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-white truncate">{userName}</p>
-              <StatusBadge variant={userRole} size="sm" showDot={false} />
-            </div>
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className={cn(
-            'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
-            'text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all',
-            collapsed && 'justify-center px-2'
-          )}
-          title="Sign out"
-        >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
-          {!collapsed && <span>{isLoggingOut ? 'Signing out…' : 'Sign out'}</span>}
-        </button>
-      </div>
-    </>
-  )
-
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar - hidden on mobile */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col h-screen flex-shrink-0',
+          'hidden lg:flex flex-col h-screen flex-shrink-0 relative z-20',
           'transition-all duration-200 ease-in-out',
           collapsed ? 'w-16' : 'w-64'
         )}
@@ -149,12 +69,83 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
           borderRight: '1px solid rgba(139, 92, 246, 0.08)',
         }}
       >
-        <NavContent />
+        {/* Logo */}
+        <div className={cn('flex items-center gap-3 px-4 py-5', collapsed && 'justify-center px-2')}
+          style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.1)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
+            <MapPin className="w-4 h-4 text-white" />
+          </div>
+          {!collapsed && (
+            <div>
+              <span className="text-sm font-bold text-white tracking-tight">GeoAttend</span>
+              <p className="text-[10px] text-slate-500 leading-none mt-0.5">Workforce Platform</p>
+            </div>
+          )}
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
+          {adminNavItems.map(({ href, label, icon: Icon, color }) => {
+            const isActive = pathname === href || pathname.startsWith(href + '/')
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn('nav-item', isActive && 'active', collapsed && 'justify-center px-2')}
+                title={collapsed ? label : undefined}
+                style={isActive ? {
+                  background: `linear-gradient(135deg, ${color}18, ${color}08)`,
+                  border: `1px solid ${color}30`,
+                  boxShadow: `0 0 12px ${color}15`,
+                } : {}}
+              >
+                <Icon className="nav-icon" style={{ color: isActive ? color : undefined }} />
+                {!collapsed && <span>{label}</span>}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* User section */}
+        <div className={cn('p-3', collapsed && 'flex flex-col items-center')}
+          style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)' }}>
+          {!collapsed && (
+            <div className="flex items-center gap-2.5 px-1 mb-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
+                  boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
+                }}>
+                <span className="text-xs font-semibold text-violet-400">
+                  {userName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white truncate">{userName}</p>
+                <StatusBadge variant={userRole} size="sm" showDot={false} />
+              </div>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
+              'text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all',
+              collapsed && 'justify-center px-2'
+            )}
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>{isLoggingOut ? 'Signing out…' : 'Sign out'}</span>}
+          </button>
+        </div>
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute right-0 top-[72px] translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+          className="absolute right-0 top-[72px] translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10 hidden lg:flex"
           style={{
             background: 'rgba(30, 41, 59, 0.9)',
             border: '1px solid rgba(139, 92, 246, 0.15)',
@@ -163,60 +154,6 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
       </aside>
-
-      {/* Mobile sidebar overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <aside
-            className="absolute left-0 top-0 bottom-0 w-64 flex flex-col animate-slide-in-left"
-            style={{
-              background: 'rgba(17, 24, 39, 0.95)',
-              backdropFilter: 'blur(20px)',
-              borderRight: '1px solid rgba(139, 92, 246, 0.1)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <NavContent />
-          </aside>
-        </div>
-      )}
-
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center h-14 px-4"
-        style={{
-          background: 'rgba(17, 24, 39, 0.75)',
-          backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(139, 92, 246, 0.08)',
-        }}>
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-        <div className="flex items-center gap-2 ml-3">
-          <div className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
-            <MapPin className="w-3.5 h-3.5 text-white" />
-          </div>
-          <span className="text-sm font-bold text-white">GeoAttend</span>
-        </div>
-        <div className="ml-auto">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
-              boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
-            }}>
-            <span className="text-xs font-semibold text-violet-400">
-              {userName.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        </div>
-      </div>
     </>
   )
 }

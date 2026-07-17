@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getOrgAttendanceToday } from '@/app/actions/attendance'
 import { AttendanceTable } from '@/components/attendance/AttendanceTable'
@@ -8,7 +9,7 @@ export const metadata: Metadata = { title: 'Attendance' }
 
 export default async function AdminAttendancePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

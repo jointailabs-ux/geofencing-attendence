@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getAllPayrollRuns } from '@/app/actions/payroll'
 import { AdminPayrollRun } from '@/components/payroll/AdminPayrollRun'
@@ -8,7 +9,7 @@ export const metadata: Metadata = { title: 'Payroll Management' }
 
 export default async function AdminPayrollPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

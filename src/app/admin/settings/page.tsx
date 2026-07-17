@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getHolidays } from '@/app/actions/settings'
 import { HolidaysManager } from '@/components/settings/HolidaysManager'
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: 'Settings' }
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

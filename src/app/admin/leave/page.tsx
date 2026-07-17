@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getPendingLeaveRequests, getTeamLeaveCalendar } from '@/app/actions/leave'
 import { LeaveApprovalsInbox } from '@/components/leave/LeaveApprovalsInbox'
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: 'Org Leave Calendar' }
 
 export default async function AdminLeavePage({ searchParams }: { searchParams: { month?: string, year?: string } }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

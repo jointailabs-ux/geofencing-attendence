@@ -1,139 +1,145 @@
-import { createClient } from '@/lib/supabase/server'
+import { getCachedEmployee } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getManagerDashboardStats } from '@/app/actions/dashboard'
-import { Users, CalendarOff, Building2, UserCheck, AlertCircle, Clock, LogOut } from 'lucide-react'
+import { CalendarOff, Building2, UserCheck, AlertCircle, Clock, ArrowRight } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Manager Dashboard' }
 
-const statColors = [
-  { color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },   // violet
-  { color: '#10B981', bg: 'rgba(16,185,129,0.12)' },    // emerald
-  { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },    // amber
-]
-
 export default async function ManagerDashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('outlet_id, full_name, outlets(name)')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const employee = await getCachedEmployee()
   if (!employee || !employee.outlet_id) redirect('/login')
 
-  const outletName = (employee.outlets as unknown as { name: string })?.name ?? 'Your Outlet'
+  const outletName = employee.outlets?.name ?? 'Your Outlet'
   const { metrics, roster } = await getManagerDashboardStats(employee.outlet_id)
 
-  const stats = [
-    { label: 'Active Staff', value: metrics.staffCount, icon: Users },
-    { label: 'Present Today', value: metrics.presentCount, icon: UserCheck },
-    { label: 'Pending Leaves', value: metrics.pendingLeaves, icon: CalendarOff },
-  ]
-
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-6 pb-6">
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <div className="flex items-center gap-1.5 mt-1">
-          <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-          <p className="page-subtitle">{outletName}</p>
+        <h1 className="page-title text-3xl">Dashboard</h1>
+        <div className="flex items-center gap-2 mt-2">
+          <div className="w-6 h-6 rounded flex items-center justify-center bg-cyan-500/20 text-cyan-400">
+            <Building2 className="w-3.5 h-3.5" />
+          </div>
+          <p className="page-subtitle text-base m-0 text-white font-medium">{outletName}</p>
         </div>
       </div>
 
-      {/* Top Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {stats.map(({ label, value, icon: Icon }, idx) => {
-          const { color, bg } = statColors[idx]
-          return (
-            <div key={label} className="rounded-2xl p-4 flex flex-col justify-between h-32 transition-all duration-300 hover:-translate-y-0.5"
-              style={{
-                background: `linear-gradient(145deg, ${bg}, rgba(10,15,30,0.9))`,
-                border: `1px solid ${color}20`,
-                boxShadow: `0 8px 32px rgba(0,0,0,0.2), 0 0 20px ${color}08`,
-              }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: bg }}>
-                <Icon className="w-5 h-5" style={{ color }} />
+      {/* Bento Grid Top Section */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Large Stat */}
+        <div className="sm:col-span-2 rounded-3xl p-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300"
+          style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.05), rgba(10,15,30,0.9))', border: '1px solid rgba(16,185,129,0.15)' }}>
+          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 blur-[60px] rounded-full pointer-events-none" />
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                <UserCheck className="w-5 h-5 text-emerald-400" />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
-                <p className="text-xs font-medium text-slate-400 mt-0.5">{label}</p>
-              </div>
+              <span className="text-sm font-semibold text-emerald-400 uppercase tracking-widest">Active Shift</span>
             </div>
-          )
-        })}
+            <div className="flex items-end gap-3">
+              <span className="text-6xl font-bold tracking-tighter text-white">{metrics.presentCount}</span>
+              <span className="text-lg text-slate-400 font-medium mb-1">/ {metrics.staffCount} Present Today</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Small Stat */}
+        <div className="rounded-3xl p-6 flex flex-col justify-between bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors relative overflow-hidden">
+          <div className="absolute bottom-0 right-0 w-32 h-32 bg-amber-500/10 blur-[40px] rounded-full pointer-events-none" />
+          <div className="flex items-center gap-3 mb-6 relative z-10">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
+              <CalendarOff className="w-5 h-5 text-amber-400" />
+            </div>
+            <span className="text-sm font-semibold text-amber-400 uppercase tracking-widest">Leaves</span>
+          </div>
+          <div className="relative z-10">
+            <p className="text-5xl font-bold tracking-tighter text-white">{metrics.pendingLeaves}</p>
+            <p className="text-sm text-slate-400 font-medium mt-1">Pending Requests</p>
+          </div>
+        </div>
       </div>
 
+      {/* Bento Middle Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Live Roster */}
-        <div className="lg:col-span-2">
-          <div className="rounded-2xl overflow-hidden"
-            style={{
-              background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(10, 15, 30, 0.9))',
-              border: '1px solid rgba(6, 182, 212, 0.1)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-            }}>
-            <div className="p-5 flex justify-between items-center"
-              style={{ borderBottom: '1px solid rgba(6, 182, 212, 0.1)' }}>
-              <h2 className="text-lg font-bold text-white">Live Roster (Today)</h2>
-              <a href="/manager/attendance" className="text-xs font-medium transition-colors"
-                style={{ color: '#06B6D4' }}
-                onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.target as HTMLElement).style.color = '#22d3ee'; }}
-                onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.target as HTMLElement).style.color = '#06B6D4'; }}>
-                View full logs →
-              </a>
+        {/* Quick Actions (Bento Box) */}
+        <div className="space-y-4">
+          <a href="/manager/leave" className="group block rounded-3xl p-6 bg-white/[0.02] border border-white/5 hover:border-violet-500/30 transition-all duration-300 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 to-violet-500/5 group-hover:to-violet-500/10 transition-colors" />
+            <div className="relative z-10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white group-hover:text-violet-300 transition-colors">Review Leaves</h3>
+                <p className="text-sm text-slate-400 mt-1">Approve/Reject requests</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-violet-400 group-hover:translate-x-1 transition-transform" />
             </div>
+          </a>
+          
+          <a href="/manager/attendance" className="group block rounded-3xl p-6 bg-white/[0.02] border border-white/5 hover:border-cyan-500/30 transition-all duration-300 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 to-cyan-500/5 group-hover:to-cyan-500/10 transition-colors" />
+            <div className="relative z-10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">View Logs</h3>
+                <p className="text-sm text-slate-400 mt-1">Check today&apos;s history</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-cyan-400 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </a>
+        </div>
+
+        {/* Live Roster */}
+        <div className="lg:col-span-2 rounded-3xl bg-white/[0.02] border border-white/5 overflow-hidden flex flex-col">
+          <div className="p-6 flex justify-between items-center bg-white/[0.01] border-b border-white/5">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live Roster
+            </h2>
+          </div>
+          
+          <div className="flex-1 overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-300">
-              <thead className="text-xs uppercase text-slate-500 font-semibold"
-                style={{ background: 'rgba(10,15,30,0.5)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <tr>
-                  <th className="px-5 py-3">Employee</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3 text-right">Last Log</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.map((emp, i) => (
-                  <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors"
-                    style={{ borderBottom: i < roster.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{emp.name}</span>
-                        {emp.flagged && <span title="Flagged entries today"><AlertCircle className="w-4 h-4 text-red-400" /></span>}
+              <tbody className="divide-y divide-white/5">
+                {roster.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 border border-slate-700">
+                          {emp.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-white">{emp.name}</span>
+                            {emp.flagged && <AlertCircle className="w-3.5 h-3.5 text-red-400" />}
+                          </div>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">{emp.role.replace('_', ' ')}</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-500 uppercase mt-0.5">{emp.role.replace('_', ' ')}</p>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-6 py-4">
                       {emp.status === 'checked_in' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-                          style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
-                          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#34d399' }}></span> IN
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          IN
                         </span>
                       ) : emp.status === 'checked_out' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-                          style={{ background: 'rgba(100,116,139,0.1)', color: '#94a3b8' }}>
-                          <LogOut className="w-3 h-3" /> OUT
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                          OUT
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-                          style={{ background: 'rgba(10,15,30,0.5)', color: '#64748b', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          Absent
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-900 text-slate-600 border border-slate-800 border-dashed">
+                          ABSENT
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right text-slate-400 font-mono text-xs">
+                    <td className="px-6 py-4 text-right">
                       {emp.lastLogTime ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Clock className="w-3.5 h-3.5 opacity-50" />
+                        <div className="flex items-center justify-end gap-2 text-xs font-mono text-slate-400">
+                          <Clock className="w-3 h-3 text-slate-500" />
                           {new Date(emp.lastLogTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       ) : (
-                        <span>—</span>
+                        <span className="text-slate-600 text-xs">—</span>
                       )}
                     </td>
                   </tr>
@@ -142,46 +148,6 @@ export default async function ManagerDashboardPage() {
             </table>
           </div>
         </div>
-
-        {/* Quick Actions */}
-        <div className="space-y-4">
-          <div className="geo-card !p-5">
-            <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: '#a78bfa' }}>Quick Actions</h3>
-            <div className="space-y-3">
-              <a href="/manager/leave" className="flex items-center gap-3 p-3 rounded-xl transition-all duration-300 group cursor-pointer"
-                style={{
-                  background: 'rgba(10,15,30,0.5)',
-                  border: '1px solid rgba(245,158,11,0.1)',
-                }}
-                onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.3)'; }}
-                onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.1)'; }}>
-                <div className="p-2 rounded-lg transition-colors" style={{ background: 'rgba(245,158,11,0.12)' }}>
-                  <CalendarOff className="w-4 h-4 text-amber-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Review Leaves</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Approve/Reject requests</p>
-                </div>
-              </a>
-              <a href="/manager/attendance" className="flex items-center gap-3 p-3 rounded-xl transition-all duration-300 group cursor-pointer"
-                style={{
-                  background: 'rgba(10,15,30,0.5)',
-                  border: '1px solid rgba(6,182,212,0.1)',
-                }}
-                onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(6,182,212,0.3)'; }}
-                onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(6,182,212,0.1)'; }}>
-                <div className="p-2 rounded-lg transition-colors" style={{ background: 'rgba(6,182,212,0.12)' }}>
-                  <UserCheck className="w-4 h-4 text-cyan-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">View Full Logs</p>
-                  <p className="text-xs text-slate-400 mt-0.5">See today&apos;s check-ins</p>
-                </div>
-              </a>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   )

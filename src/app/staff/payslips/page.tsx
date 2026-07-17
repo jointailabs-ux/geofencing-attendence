@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { FileText, Download } from 'lucide-react'
 import type { Metadata } from 'next'
@@ -7,7 +8,7 @@ export const metadata: Metadata = { title: 'My Payslips' }
 
 export default async function StaffPayslipsPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

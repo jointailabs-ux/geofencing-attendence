@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getLeaveBalances, getMyLeaveRequests } from '@/app/actions/leave'
 import { LeaveBalanceCards } from '@/components/leave/LeaveBalanceCards'
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: 'Leave Management' }
 
 export default async function StaffLeavePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase

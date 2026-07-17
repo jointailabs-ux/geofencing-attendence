@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCachedEmployee } from '@/lib/auth'
 import { StaffBottomNav } from '@/components/layout/StaffBottomNav'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { logout } from '@/app/actions/auth'
@@ -16,22 +16,11 @@ export default async function StaffLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, role, outlet_id, outlets(name)')
-    .eq('auth_user_id', user.id)
-    .single()
+  const employee = await getCachedEmployee()
 
   if (!employee) redirect('/login')
 
-  const outletName = (employee.outlets as unknown as { name: string } | null)?.name ?? 'No outlet assigned'
+  const outletName = employee.outlets?.name ?? 'No outlet assigned'
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0f1e' }}>
@@ -50,7 +39,7 @@ export default async function StaffLayout({
           </div>
           <div>
             <p className="text-sm font-semibold text-white leading-none">{employee.full_name}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">{outletName}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[150px]">{outletName}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

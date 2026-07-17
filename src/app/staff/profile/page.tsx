@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { getEmployeeAttendanceHistory } from '@/app/actions/attendance'
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: 'My Profile' }
 
 export default async function StaffProfilePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) redirect('/login')
 
   const { data: employee } = await supabase
