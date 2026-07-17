@@ -11,8 +11,9 @@ import {
   Trash2,
   Ruler,
   Shield,
-  AlertTriangle,
   Loader2,
+  Building2,
+  MapPin,
 } from 'lucide-react'
 
 interface OutletTableProps {
@@ -35,181 +36,131 @@ export function OutletTable({ outlets }: OutletTableProps) {
     setConfirmId(null)
   }
 
-  return (
-    <>
-      {/* Desktop table */}
-      <div className="geo-card hidden lg:block overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr className="bg-[#0F172A]/40">
-                <th>Outlet</th>
-                <th>Coordinates</th>
-                <th>Radius</th>
-                <th>Buffer</th>
-                <th>Staff</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outlets.map((outlet) => (
-                <tr key={outlet.id}>
-                  <td>
-                    <div>
-                      <p className="font-semibold text-white">{outlet.name}</p>
-                      {outlet.address && (
-                        <p className="text-xs text-slate-500 mt-0.5 max-w-xs truncate">
-                          {outlet.address}
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="font-mono text-xs text-slate-400">
-                      <div>{outlet.latitude.toFixed(5)}</div>
-                      <div>{outlet.longitude.toFixed(5)}</div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1.5">
-                      <Ruler className="w-3.5 h-3.5 text-accent" />
-                      <span className="text-slate-300">{outlet.radius_meters}m</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-warn" />
-                      <span className="text-slate-300">{outlet.buffer_meters}m</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-valid" />
-                      <span className="text-slate-300">{outlet.employee_count}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/admin/outlets/${outlet.id}/edit`}
-                        className="p-1.5 text-slate-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
-                        title="Edit outlet"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Link>
-                      {confirmId === outlet.id ? (
-                        <div className="flex items-center gap-2 bg-danger/10 border border-danger/20 rounded-lg px-3 py-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-danger flex-shrink-0" />
-                          <span className="text-xs text-danger">Delete?</span>
-                          <button
-                            onClick={() => handleDelete(outlet.id)}
-                            disabled={deletingId === outlet.id}
-                            className="text-xs font-semibold text-danger hover:text-white transition-colors"
-                          >
-                            {deletingId === outlet.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              'Yes'
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="text-xs text-slate-400 hover:text-white transition-colors"
-                          >
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmId(outlet.id)}
-                          className="p-1.5 text-slate-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                          title="Delete outlet"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+  if (outlets.length === 0) {
+    return (
+      <div className="text-center py-20 rounded-3xl bg-white/[0.01] border border-white/5">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-cyan-500/10 flex items-center justify-center mb-4">
+          <Building2 className="w-8 h-8 text-cyan-400" />
         </div>
+        <p className="text-white font-medium text-lg">No outlets created yet</p>
+        <p className="text-slate-400 text-sm mt-1">Add your first location to get started.</p>
       </div>
+    )
+  }
 
-      {/* Mobile cards */}
-      <div className="lg:hidden space-y-3">
-        {outlets.map((outlet) => (
-          <div key={outlet.id} className="geo-card">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white">{outlet.name}</h3>
-                {outlet.address && (
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{outlet.address}</p>
-                )}
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {outlets.map((outlet, idx) => {
+        // Generate a pseudo-random color theme per card for vibrancy
+        const themes = ['cyan', 'violet', 'emerald', 'amber', 'rose'] as const
+        const theme = themes[idx % themes.length]
+        
+        return (
+          <div key={outlet.id} className="group relative rounded-3xl p-6 bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-300 overflow-hidden flex flex-col h-full hover:shadow-2xl hover:border-white/10">
+            
+            {/* Ambient Top Glow */}
+            <div className="absolute top-0 right-0 w-48 h-48 blur-[60px] rounded-full pointer-events-none opacity-20 group-hover:opacity-40 transition-opacity duration-500"
+              style={{
+                background: theme === 'cyan' ? '#06B6D4' :
+                            theme === 'violet' ? '#8B5CF6' :
+                            theme === 'emerald' ? '#10B981' :
+                            theme === 'amber' ? '#F59E0B' : '#F43F5E'
+              }} />
+
+            <div className="relative z-10 flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center border shadow-lg flex-shrink-0"
+                  style={{
+                    background: `rgba(var(--${theme}-500), 0.1)`,
+                    borderColor: `rgba(var(--${theme}-500), 0.2)`,
+                    color: `var(--${theme}-400)`
+                  }}>
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl font-bold text-white truncate">{outlet.name}</h3>
+                  <div className="flex items-center gap-1.5 mt-1 text-slate-400">
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-xs truncate">{outlet.latitude.toFixed(5)}, {outlet.longitude.toFixed(5)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 ml-3 flex-shrink-0">
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Users className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Workforce</span>
+                  </div>
+                  <span className="text-xl font-bold text-white">{outlet.employee_count}</span>
+                </div>
+                
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Ruler className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Radius</span>
+                  </div>
+                  <span className="text-xl font-bold text-white">{outlet.radius_meters}m</span>
+                </div>
+
+                <div className="col-span-2 bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Buffer Zone</span>
+                  </div>
+                  <span className="text-sm font-bold text-white bg-white/5 px-2.5 py-1 rounded-lg">
+                    +{outlet.buffer_meters}m
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="mt-auto pt-4 border-t border-white/5 flex gap-2">
                 <Link
                   href={`/admin/outlets/${outlet.id}/edit`}
-                  className="p-1.5 text-slate-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-white/[0.03] text-sm font-semibold text-white hover:bg-white/[0.08] transition-colors border border-white/5"
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Edit
                 </Link>
-                <button
-                  onClick={() => setConfirmId(outlet.id)}
-                  className="p-1.5 text-slate-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+
+                <div className="relative flex-1">
+                  {confirmId === outlet.id ? (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-3 bg-slate-800 rounded-xl border border-red-500/30 shadow-2xl z-20">
+                      <p className="text-xs text-center text-slate-300 mb-3 font-medium">Delete outlet?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDelete(outlet.id)}
+                          disabled={deletingId === outlet.id}
+                          className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-1.5 rounded-lg hover:bg-red-500/30 transition-colors flex justify-center"
+                        >
+                          {deletingId === outlet.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmId(null)}
+                          disabled={deletingId === outlet.id}
+                          className="flex-1 bg-white/10 text-slate-300 text-xs font-bold py-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  <button
+                    onClick={() => setConfirmId(outlet.id)}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 text-sm font-semibold text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-slate-500 mb-0.5">Radius</p>
-                <div className="flex items-center gap-1">
-                  <Ruler className="w-3 h-3 text-accent" />
-                  <span className="text-slate-300">{outlet.radius_meters}m</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-0.5">Buffer</p>
-                <div className="flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-warn" />
-                  <span className="text-slate-300">{outlet.buffer_meters}m</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-0.5">Staff</p>
-                <div className="flex items-center gap-1">
-                  <Users className="w-3 h-3 text-valid" />
-                  <span className="text-slate-300">{outlet.employee_count}</span>
-                </div>
-              </div>
-            </div>
-
-            {confirmId === outlet.id && (
-              <div className="mt-3 flex items-center gap-3 bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
-                <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0" />
-                <span className="text-sm text-danger flex-1">Delete this outlet?</span>
-                <button
-                  onClick={() => handleDelete(outlet.id)}
-                  disabled={deletingId === outlet.id}
-                  className="text-sm font-semibold text-danger"
-                >
-                  {deletingId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
-                </button>
-                <button
-                  onClick={() => setConfirmId(null)}
-                  className="text-sm text-slate-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
           </div>
-        ))}
-      </div>
-    </>
+        )
+      })}
+    </div>
   )
 }
