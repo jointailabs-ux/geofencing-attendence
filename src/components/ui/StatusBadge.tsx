@@ -19,82 +19,97 @@ export type StatusVariant =
 
 const variantConfig: Record<
   StatusVariant,
-  { label: string; className: string; dotClass: string }
+  { label: string; bg: string; text: string; dotColor: string }
 > = {
   present: {
     label: 'Present',
-    className: 'bg-valid/10 text-valid border-valid/20',
-    dotClass: 'bg-valid',
+    bg: 'rgba(16,185,129,0.12)',
+    text: '#34d399',
+    dotColor: '#10B981',
   },
   absent: {
     label: 'Absent',
-    className: 'bg-danger/10 text-danger border-danger/20',
-    dotClass: 'bg-danger',
+    bg: 'rgba(239,68,68,0.12)',
+    text: '#f87171',
+    dotColor: '#EF4444',
   },
   late: {
     label: 'Late',
-    className: 'bg-warn/10 text-warn border-warn/20',
-    dotClass: 'bg-warn',
+    bg: 'rgba(245,158,11,0.12)',
+    text: '#fbbf24',
+    dotColor: '#F59E0B',
   },
   pending: {
     label: 'Pending',
-    className: 'bg-[#334155]/60 text-slate-300 border-[#475569]',
-    dotClass: 'bg-slate-400',
+    bg: 'rgba(100,116,139,0.12)',
+    text: '#94a3b8',
+    dotColor: '#94A3B8',
   },
   approved: {
     label: 'Approved',
-    className: 'bg-valid/10 text-valid border-valid/20',
-    dotClass: 'bg-valid',
+    bg: 'rgba(16,185,129,0.12)',
+    text: '#34d399',
+    dotColor: '#10B981',
   },
   rejected: {
     label: 'Rejected',
-    className: 'bg-danger/10 text-danger border-danger/20',
-    dotClass: 'bg-danger',
+    bg: 'rgba(239,68,68,0.12)',
+    text: '#f87171',
+    dotColor: '#EF4444',
   },
   flagged: {
     label: 'Flagged',
-    className: 'bg-warn/10 text-warn border-warn/20',
-    dotClass: 'bg-warn',
+    bg: 'rgba(245,158,11,0.12)',
+    text: '#fbbf24',
+    dotColor: '#F59E0B',
   },
   active: {
     label: 'Active',
-    className: 'bg-valid/10 text-valid border-valid/20',
-    dotClass: 'bg-valid',
+    bg: 'rgba(16,185,129,0.12)',
+    text: '#34d399',
+    dotColor: '#10B981',
   },
   inactive: {
     label: 'Inactive',
-    className: 'bg-[#334155]/60 text-slate-400 border-[#475569]',
-    dotClass: 'bg-slate-500',
+    bg: 'rgba(100,116,139,0.12)',
+    text: '#94a3b8',
+    dotColor: '#64748B',
   },
   fixed: {
     label: 'Fixed',
-    className: 'bg-accent/10 text-accent border-accent/20',
-    dotClass: 'bg-accent',
+    bg: 'rgba(139,92,246,0.12)',
+    text: '#a78bfa',
+    dotColor: '#8B5CF6',
   },
   daily: {
     label: 'Daily',
-    className: 'bg-accent/10 text-accent border-accent/20',
-    dotClass: 'bg-accent',
+    bg: 'rgba(6,182,212,0.12)',
+    text: '#67e8f9',
+    dotColor: '#06B6D4',
   },
   hourly: {
     label: 'Hourly',
-    className: 'bg-accent/10 text-accent border-accent/20',
-    dotClass: 'bg-accent',
+    bg: 'rgba(244,63,94,0.12)',
+    text: '#fb7185',
+    dotColor: '#F43F5E',
   },
   super_admin: {
     label: 'Super Admin',
-    className: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    dotClass: 'bg-purple-400',
+    bg: 'rgba(139,92,246,0.12)',
+    text: '#a78bfa',
+    dotColor: '#8B5CF6',
   },
   manager: {
     label: 'Manager',
-    className: 'bg-accent/10 text-accent border-accent/20',
-    dotClass: 'bg-accent',
+    bg: 'rgba(6,182,212,0.12)',
+    text: '#67e8f9',
+    dotColor: '#06B6D4',
   },
   staff: {
     label: 'Staff',
-    className: 'bg-[#334155]/60 text-slate-300 border-[#475569]',
-    dotClass: 'bg-slate-400',
+    bg: 'rgba(100,116,139,0.12)',
+    text: '#94a3b8',
+    dotColor: '#94A3B8',
   },
 }
 
@@ -119,14 +134,24 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border font-medium',
+        'inline-flex items-center gap-1.5 rounded-full font-medium',
         size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-sm',
-        config.className,
         className
       )}
+      style={{
+        background: config.bg,
+        color: config.text,
+        border: `1px solid ${config.text}20`,
+      }}
     >
       {showDot && (
-        <span className={cn('rounded-full flex-shrink-0', size === 'sm' ? 'w-1.5 h-1.5' : 'w-2 h-2', config.dotClass)} />
+        <span
+          className={cn('rounded-full flex-shrink-0', size === 'sm' ? 'w-1.5 h-1.5' : 'w-2 h-2')}
+          style={{
+            background: config.dotColor,
+            boxShadow: `0 0 4px ${config.dotColor}60`,
+          }}
+        />
       )}
       {displayLabel}
     </span>

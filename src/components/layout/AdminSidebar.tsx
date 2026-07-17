@@ -25,7 +25,8 @@ import {
 interface NavItem {
   href: string
   label: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+  color: string
 }
 
 interface AdminSidebarProps {
@@ -35,13 +36,13 @@ interface AdminSidebarProps {
 }
 
 const adminNavItems: NavItem[] = [
-  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/outlets', label: 'Outlets', icon: Building2 },
-  { href: '/admin/employees', label: 'Employees', icon: Users },
-  { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
-  { href: '/admin/leave', label: 'Leave', icon: CalendarOff },
-  { href: '/admin/payroll', label: 'Payroll', icon: Banknote },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: '#8B5CF6' },
+  { href: '/admin/outlets', label: 'Outlets', icon: Building2, color: '#06B6D4' },
+  { href: '/admin/employees', label: 'Employees', icon: Users, color: '#10B981' },
+  { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList, color: '#F59E0B' },
+  { href: '/admin/leave', label: 'Leave', icon: CalendarOff, color: '#F43F5E' },
+  { href: '/admin/payroll', label: 'Payroll', icon: Banknote, color: '#06B6D4' },
+  { href: '/admin/settings', label: 'Settings', icon: Settings, color: '#6B7280' },
 ]
 
 export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
@@ -58,8 +59,10 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
   const NavContent = () => (
     <>
       {/* Logo */}
-      <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-[#334155]', collapsed && 'justify-center px-2')}>
-        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className={cn('flex items-center gap-3 px-4 py-5', collapsed && 'justify-center px-2')}
+        style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.1)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
           <MapPin className="w-4 h-4 text-white" />
         </div>
         {!collapsed && (
@@ -72,7 +75,7 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
 
       {/* Nav items */}
       <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-        {adminNavItems.map(({ href, label, icon: Icon }) => {
+        {adminNavItems.map(({ href, label, icon: Icon, color }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
@@ -81,8 +84,13 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
               onClick={() => setMobileOpen(false)}
               className={cn('nav-item', isActive && 'active', collapsed && 'justify-center px-2')}
               title={collapsed ? label : undefined}
+              style={isActive ? {
+                background: `linear-gradient(135deg, ${color}18, ${color}08)`,
+                border: `1px solid ${color}30`,
+                boxShadow: `0 0 12px ${color}15`,
+              } : {}}
             >
-              <Icon className="nav-icon" />
+              <Icon className="nav-icon" style={{ color: isActive ? color : undefined }} />
               {!collapsed && <span>{label}</span>}
             </Link>
           )
@@ -90,11 +98,16 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
       </nav>
 
       {/* User section */}
-      <div className={cn('border-t border-[#334155] p-3', collapsed && 'flex flex-col items-center')}>
+      <div className={cn('p-3', collapsed && 'flex flex-col items-center')}
+        style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)' }}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 px-1 mb-2">
-            <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-semibold text-accent">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
+                boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
+              }}>
+              <span className="text-xs font-semibold text-violet-400">
                 {userName.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -108,8 +121,8 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
           onClick={handleLogout}
           disabled={isLoggingOut}
           className={cn(
-            'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium',
-            'text-slate-400 hover:text-danger hover:bg-danger/10 transition-all',
+            'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
+            'text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all',
             collapsed && 'justify-center px-2'
           )}
           title="Sign out"
@@ -126,32 +139,45 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col h-screen bg-[#1E293B] border-r border-[#334155]',
-          'transition-all duration-200 ease-in-out flex-shrink-0',
+          'hidden lg:flex flex-col h-screen flex-shrink-0',
+          'transition-all duration-200 ease-in-out',
           collapsed ? 'w-16' : 'w-64'
         )}
+        style={{
+          background: 'rgba(17, 24, 39, 0.6)',
+          backdropFilter: 'blur(20px)',
+          borderRight: '1px solid rgba(139, 92, 246, 0.08)',
+        }}
       >
         <NavContent />
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute right-0 top-[72px] translate-x-1/2 w-6 h-6 bg-[#334155] border border-[#475569] rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+          className="absolute right-0 top-[72px] translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+          style={{
+            background: 'rgba(30, 41, 59, 0.9)',
+            border: '1px solid rgba(139, 92, 246, 0.15)',
+          }}
         >
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
       </aside>
 
-      {/* Mobile: hamburger button in header is handled by MobileHeader */}
       {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         >
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <aside
-            className="absolute left-0 top-0 bottom-0 w-64 bg-[#1E293B] border-r border-[#334155] flex flex-col animate-slide-in-left"
+            className="absolute left-0 top-0 bottom-0 w-64 flex flex-col animate-slide-in-left"
+            style={{
+              background: 'rgba(17, 24, 39, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRight: '1px solid rgba(139, 92, 246, 0.1)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <NavContent />
@@ -160,22 +186,32 @@ export function AdminSidebar({ userName, userRole }: AdminSidebarProps) {
       )}
 
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center h-14 px-4 bg-[#1E293B] border-b border-[#334155]">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center h-14 px-4"
+        style={{
+          background: 'rgba(17, 24, 39, 0.75)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(139, 92, 246, 0.08)',
+        }}>
         <button
           onClick={() => setMobileOpen(true)}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-[#334155] transition-colors"
+          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
         >
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2 ml-3">
-          <div className="w-6 h-6 bg-accent rounded-md flex items-center justify-center">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
             <MapPin className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-bold text-white">GeoAttend</span>
         </div>
         <div className="ml-auto">
-          <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center">
-            <span className="text-xs font-semibold text-accent">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
+              boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
+            }}>
+            <span className="text-xs font-semibold text-violet-400">
               {userName.charAt(0).toUpperCase()}
             </span>
           </div>

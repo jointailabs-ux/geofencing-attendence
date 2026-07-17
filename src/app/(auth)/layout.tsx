@@ -11,21 +11,43 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
-      {/* Background grid pattern */}
+    <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated gradient orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute -top-32 -left-32 w-96 h-96 rounded-full animate-orb-float"
+          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.15), transparent 70%)' }}
+        />
+        <div
+          className="absolute top-1/2 -right-48 w-[500px] h-[500px] rounded-full animate-orb-float"
+          style={{ background: 'radial-gradient(circle, rgba(6,182,212,0.12), transparent 70%)', animationDelay: '-7s' }}
+        />
+        <div
+          className="absolute -bottom-32 left-1/3 w-80 h-80 rounded-full animate-orb-float"
+          style={{ background: 'radial-gradient(circle, rgba(244,63,94,0.1), transparent 70%)', animationDelay: '-13s' }}
+        />
+        <div
+          className="absolute top-1/4 left-1/2 w-64 h-64 rounded-full animate-orb-float"
+          style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.08), transparent 70%)', animationDelay: '-4s' }}
+        />
+      </div>
+
+      {/* Subtle grid pattern */}
       <div
-        className="fixed inset-0 opacity-[0.03]"
+        className="fixed inset-0 opacity-[0.02]"
         style={{
           backgroundImage:
-            'linear-gradient(#334155 1px, transparent 1px), linear-gradient(to right, #334155 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
+            'linear-gradient(rgba(139,92,246,0.3) 1px, transparent 1px), linear-gradient(to right, rgba(139,92,246,0.3) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
         }}
       />
+
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-accent rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center relative"
+              style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"

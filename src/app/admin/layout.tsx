@@ -34,13 +34,17 @@ export default async function AdminLayout({
   const outletName = (employee.outlets as unknown as { name: string } | null)?.name ?? undefined
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#0a0f1e' }}>
       <AdminSidebar
         userName={employee.full_name}
         userRole={employee.role}
         outletName={outletName}
       />
-      <main className="flex-1 overflow-y-auto bg-[#0F172A] lg:pt-0 pt-14">
+      <main className="flex-1 overflow-y-auto lg:pt-0 pt-14"
+        style={{
+          background: '#0a0f1e',
+          backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.04), transparent 50%)',
+        }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           {children}
         </div>
@@ -49,9 +53,11 @@ export default async function AdminLayout({
         position="top-right"
         toastOptions={{
           style: {
-            background: '#1E293B',
-            border: '1px solid #334155',
+            background: 'rgba(17, 24, 39, 0.9)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(139, 92, 246, 0.15)',
             color: '#E2E8F0',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
           },
         }}
       />

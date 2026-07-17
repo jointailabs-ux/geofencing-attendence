@@ -13,7 +13,7 @@ export interface GeocodeResponse {
   error?: string
 }
 
-export type GeocodeProvider = 'locationiq' | 'nominatim'
+export type GeocodeProvider = 'google' | 'nominatim'
 
 export interface ProviderState {
   provider: GeocodeProvider
@@ -23,9 +23,9 @@ export interface ProviderState {
 // ─── Provider Detection ────────────────────────────────────────────────────────
 
 export async function getGeocodeProviderState(): Promise<ProviderState> {
-  const locationiqKey = process.env.LOCATIONIQ_API_KEY
-  if (locationiqKey) {
-    return { provider: 'locationiq', label: 'LocationIQ' }
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  if (googleKey) {
+    return { provider: 'google', label: 'Google Maps' }
   }
   return { provider: 'nominatim', label: 'OpenStreetMap' }
 }
@@ -34,56 +34,45 @@ export async function getGeocodeProviderState(): Promise<ProviderState> {
 
 /**
  * Search for an address/place by query string.
- * Uses LocationIQ if LOCATIONIQ_API_KEY is set (more accurate).
- * Falls back to Nominatim (OpenStreetMap, completely free, no API key needed).
- * Results are always biased to India (countrycodes=in).
+ * Uses Google Geocoding API if GOOGLE_MAPS_API_KEY is set.
+ * Falls back to Nominatim (completely free, no key needed, India-biased).
  */
 export async function searchAddress(query: string): Promise<GeocodeResponse> {
-  const locationiqKey = process.env.LOCATIONIQ_API_KEY
-
-  if (locationiqKey) {
-    return searchViaLocationIQ(query, locationiqKey)
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  if (googleKey) {
+    return searchViaGoogle(query, googleKey)
   }
   return searchViaNominatim(query)
 }
 
-async function searchViaLocationIQ(query: string, key: string): Promise<GeocodeResponse> {
+async function searchViaGoogle(query: string, key: string): Promise<GeocodeResponse> {
   try {
-    // LocationIQ search biased to India
-    const url = `https://us1.locationiq.com/v1/search?key=${key}&q=${encodeURIComponent(query)}&format=json&countrycodes=in&addressdetails=1&limit=7`
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&region=in&key=${key}`
     const response = await fetch(url, { next: { revalidate: 3600 } })
-
-    if (!response.ok) {
-      const errText = await response.text()
-      console.warn('LocationIQ search failed:', response.status, errText)
-      // Fall back to Nominatim on failure
-      return searchViaNominatim(query)
-    }
-
     const data = await response.json()
 
-    if (!Array.isArray(data) || data.length === 0) {
-      // Try without country restriction if no India results
+    if (data.status === 'OK' && data.results?.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: GeocodeResult[] = data.results.map((item: any) => ({
+        display_name: item.formatted_address as string,
+        lat: item.geometry.location.lat as number,
+        lon: item.geometry.location.lng as number,
+      }))
+      return { results }
+    } else if (data.status === 'ZERO_RESULTS') {
+      return { results: [] }
+    } else {
+      console.warn('Google Geocoding failed:', data.status, data.error_message)
       return searchViaNominatim(query)
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const results: GeocodeResult[] = data.map((item: any) => ({
-      display_name: item.display_name as string,
-      lat: parseFloat(item.lat),
-      lon: parseFloat(item.lon),
-    }))
-
-    return { results }
   } catch (error) {
-    console.error('LocationIQ search exception:', error)
+    console.error('Google Geocoding exception:', error)
     return searchViaNominatim(query)
   }
 }
 
 async function searchViaNominatim(query: string): Promise<GeocodeResponse> {
   try {
-    // Nominatim search — free, no key needed. Biased to India.
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=in&addressdetails=1&limit=7&accept-language=en`
     const response = await fetch(url, {
       headers: {
@@ -92,16 +81,9 @@ async function searchViaNominatim(query: string): Promise<GeocodeResponse> {
       },
       next: { revalidate: 3600 },
     })
-
-    if (!response.ok) {
-      return { error: `Nominatim search failed: ${response.status}` }
-    }
-
+    if (!response.ok) return { error: `Nominatim search failed: ${response.status}` }
     const data = await response.json()
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return { results: [] }
-    }
+    if (!Array.isArray(data) || data.length === 0) return { results: [] }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const results: GeocodeResult[] = data.map((item: any) => ({
@@ -109,11 +91,9 @@ async function searchViaNominatim(query: string): Promise<GeocodeResponse> {
       lat: parseFloat(item.lat),
       lon: parseFloat(item.lon),
     }))
-
     return { results }
   } catch (error) {
     const err = error as Error
-    console.error('Nominatim search exception:', err)
     return { error: err.message || 'Search failed' }
   }
 }
@@ -121,37 +101,31 @@ async function searchViaNominatim(query: string): Promise<GeocodeResponse> {
 // ─── Unified Reverse Geocode ───────────────────────────────────────────────────
 
 /**
- * Reverse geocode lat/lng to a human-readable address.
- * Uses LocationIQ if LOCATIONIQ_API_KEY is set.
- * Falls back to Nominatim (completely free, no key needed).
+ * Convert lat/lng coordinates to a human-readable address.
+ * Uses Google Reverse Geocoding if GOOGLE_MAPS_API_KEY is set.
+ * Falls back to Nominatim.
  */
 export async function reverseGeocodeAddress(lat: number, lng: number): Promise<{ address?: string; error?: string }> {
-  const locationiqKey = process.env.LOCATIONIQ_API_KEY
-
-  if (locationiqKey) {
-    return reverseViaLocationIQ(lat, lng, locationiqKey)
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  if (googleKey) {
+    return reverseViaGoogle(lat, lng, googleKey)
   }
   return reverseViaNominatim(lat, lng)
 }
 
-async function reverseViaLocationIQ(lat: number, lng: number, key: string): Promise<{ address?: string; error?: string }> {
+async function reverseViaGoogle(lat: number, lng: number, key: string): Promise<{ address?: string; error?: string }> {
   try {
-    const url = `https://us1.locationiq.com/v1/reverse?key=${key}&lat=${lat}&lon=${lng}&format=json`
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`
     const response = await fetch(url, { next: { revalidate: 3600 } })
-
-    if (!response.ok) {
-      console.warn('LocationIQ reverse geocode failed:', response.status)
-      return reverseViaNominatim(lat, lng)
-    }
-
     const data = await response.json()
 
-    if (data.display_name) {
-      return { address: data.display_name as string }
+    if (data.status === 'OK' && data.results?.length > 0) {
+      return { address: data.results[0].formatted_address as string }
     }
+    console.warn('Google Reverse Geocoding failed:', data.status)
     return reverseViaNominatim(lat, lng)
   } catch (error) {
-    console.error('LocationIQ reverse exception:', error)
+    console.error('Google Reverse exception:', error)
     return reverseViaNominatim(lat, lng)
   }
 }
@@ -160,43 +134,29 @@ async function reverseViaNominatim(lat: number, lng: number): Promise<{ address?
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`
     const response = await fetch(url, {
-      headers: {
-        'Accept-Language': 'en',
-        'User-Agent': 'GeoAttend/1.0 (contact@geoattend.app)',
-      },
+      headers: { 'Accept-Language': 'en', 'User-Agent': 'GeoAttend/1.0' },
       next: { revalidate: 3600 },
     })
-
-    if (!response.ok) {
-      return { error: `Nominatim reverse geocode failed: ${response.status}` }
-    }
-
+    if (!response.ok) return { error: `Nominatim reverse failed: ${response.status}` }
     const data = await response.json()
-
-    if (data.display_name) {
-      return { address: data.display_name as string }
-    }
-    return { error: 'No address found for these coordinates' }
+    if (data.display_name) return { address: data.display_name as string }
+    return { error: 'No address found' }
   } catch (error) {
     const err = error as Error
-    console.error('Nominatim reverse exception:', err)
     return { error: err.message || 'Reverse geocoding failed' }
   }
 }
 
-// ─── Legacy exports (kept for backward compatibility) ─────────────────────────
+// ─── Legacy exports ────────────────────────────────────────────────────────────
 
 export async function searchGooglePlaces(query: string): Promise<GeocodeResponse> {
-  // Route through unified search
   return searchAddress(query)
 }
 
 export async function reverseGeocodeGoogle(lat: number, lng: number): Promise<{ address?: string; error?: string }> {
-  // Route through unified reverse geocode
   return reverseGeocodeAddress(lat, lng)
 }
 
 export async function isGoogleMapsConfigured(): Promise<boolean> {
-  // Now returns true if ANY premium provider is configured
-  return !!(process.env.LOCATIONIQ_API_KEY || process.env.GOOGLE_MAPS_API_KEY)
+  return !!(process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
 }

@@ -24,9 +24,9 @@ interface ManagerSidebarProps {
 }
 
 const managerNavItems = [
-  { href: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/manager/attendance', label: 'Attendance', icon: ClipboardList },
-  { href: '/manager/leave', label: 'Leave Approvals', icon: CalendarOff },
+  { href: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: '#8B5CF6' },
+  { href: '/manager/attendance', label: 'Attendance', icon: ClipboardList, color: '#06B6D4' },
+  { href: '/manager/leave', label: 'Leave Approvals', icon: CalendarOff, color: '#F59E0B' },
 ]
 
 export function ManagerSidebar({ userName, userRole, outletName }: ManagerSidebarProps) {
@@ -41,8 +41,10 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
 
   const NavContent = () => (
     <>
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-[#334155]">
-        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-5"
+        style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.1)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
           <MapPin className="w-4 h-4 text-white" />
         </div>
         <div>
@@ -57,7 +59,7 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-0.5">
-        {managerNavItems.map(({ href, label, icon: Icon }) => {
+        {managerNavItems.map(({ href, label, icon: Icon, color }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
@@ -65,18 +67,27 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
               href={href}
               onClick={() => setMobileOpen(false)}
               className={cn('nav-item', isActive && 'active')}
+              style={isActive ? {
+                background: `linear-gradient(135deg, ${color}18, ${color}08)`,
+                border: `1px solid ${color}30`,
+                boxShadow: `0 0 12px ${color}15`,
+              } : {}}
             >
-              <Icon className="nav-icon" />
+              <Icon className="nav-icon" style={{ color: isActive ? color : undefined }} />
               <span>{label}</span>
             </Link>
           )
         })}
       </nav>
 
-      <div className="border-t border-[#334155] p-3">
+      <div className="p-3" style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)' }}>
         <div className="flex items-center gap-2.5 px-1 mb-2">
-          <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-accent">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
+              boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
+            }}>
+            <span className="text-xs font-semibold text-violet-400">
               {userName.charAt(0).toUpperCase()}
             </span>
           </div>
@@ -88,7 +99,7 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-danger hover:bg-danger/10 transition-all"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
         >
           <LogOut className="w-4 h-4" />
           <span>{isLoggingOut ? 'Signing out…' : 'Sign out'}</span>
@@ -99,15 +110,25 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
 
   return (
     <>
-      <aside className="hidden lg:flex flex-col h-screen w-64 bg-[#1E293B] border-r border-[#334155] flex-shrink-0">
+      <aside className="hidden lg:flex flex-col h-screen w-64 flex-shrink-0"
+        style={{
+          background: 'rgba(17, 24, 39, 0.6)',
+          backdropFilter: 'blur(20px)',
+          borderRight: '1px solid rgba(139, 92, 246, 0.08)',
+        }}>
         <NavContent />
       </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileOpen(false)}>
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <aside
-            className="absolute left-0 top-0 bottom-0 w-64 bg-[#1E293B] border-r border-[#334155] flex flex-col animate-slide-in-left"
+            className="absolute left-0 top-0 bottom-0 w-64 flex flex-col animate-slide-in-left"
+            style={{
+              background: 'rgba(17, 24, 39, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRight: '1px solid rgba(139, 92, 246, 0.1)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <NavContent />
@@ -115,23 +136,33 @@ export function ManagerSidebar({ userName, userRole, outletName }: ManagerSideba
         </div>
       )}
 
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center h-14 px-4 bg-[#1E293B] border-b border-[#334155]">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex items-center h-14 px-4"
+        style={{
+          background: 'rgba(17, 24, 39, 0.75)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(139, 92, 246, 0.08)',
+        }}>
         <button
           onClick={() => setMobileOpen(true)}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-[#334155] transition-colors"
+          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
         >
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2 ml-3">
-          <div className="w-6 h-6 bg-accent rounded-md flex items-center justify-center">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
             <MapPin className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-bold text-white">GeoAttend</span>
           {outletName && <span className="text-xs text-slate-500">· {outletName}</span>}
         </div>
         <div className="ml-auto">
-          <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center">
-            <span className="text-xs font-semibold text-accent">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))',
+              boxShadow: '0 0 0 2px rgba(139,92,246,0.2)',
+            }}>
+            <span className="text-xs font-semibold text-violet-400">
               {userName.charAt(0).toUpperCase()}
             </span>
           </div>

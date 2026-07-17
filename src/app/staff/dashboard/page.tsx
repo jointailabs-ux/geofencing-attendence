@@ -39,17 +39,31 @@ export default async function StaffDashboardPage() {
   return (
     <div className="p-4 sm:p-8 max-w-lg mx-auto space-y-6 animate-fade-in">
       <div className="text-center sm:text-left">
-        <h1 className="text-2xl font-bold text-white mb-1">Welcome, {employee.full_name.split(' ')[0]}</h1>
+        <h1 className="text-2xl font-bold mb-1"
+          style={{
+            background: 'linear-gradient(135deg, #ffffff, #c4b5fd, #67e8f9)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+          Welcome, {employee.full_name.split(' ')[0]}
+        </h1>
         <p className="text-slate-400">{today}</p>
       </div>
 
       <ClockInOutButton outlet={outlet} todayLogs={todayLogs} />
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Attendance Summary */}
-        <div className="geo-card !p-4 bg-gradient-to-br from-[#0F172A] to-[#1E293B]">
-          <div className="flex items-center gap-2 mb-4 text-slate-400">
-            <CheckCircle2 className="w-4 h-4" />
+        {/* Attendance Summary — Emerald themed */}
+        <div className="rounded-2xl p-4 relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(145deg, rgba(16, 185, 129, 0.08), rgba(10, 15, 30, 0.9))',
+            border: '1px solid rgba(16, 185, 129, 0.15)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2), 0 0 20px rgba(16, 185, 129, 0.05)',
+          }}>
+          <div className="flex items-center gap-2 mb-4 text-emerald-400">
+            <div className="p-1.5 rounded-lg" style={{ background: 'rgba(16, 185, 129, 0.15)' }}>
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
             <h3 className="text-xs font-semibold uppercase tracking-wider">{monthName} Attendance</h3>
           </div>
           <div className="flex justify-between items-end">
@@ -64,10 +78,17 @@ export default async function StaffDashboardPage() {
           </div>
         </div>
 
-        {/* Latest Payslip */}
-        <div className="geo-card !p-4 bg-gradient-to-br from-[#0F172A] to-[#1E293B]">
-          <div className="flex items-center gap-2 mb-4 text-slate-400">
-            <Wallet className="w-4 h-4" />
+        {/* Latest Payslip — Violet themed */}
+        <div className="rounded-2xl p-4 relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(10, 15, 30, 0.9))',
+            border: '1px solid rgba(139, 92, 246, 0.15)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2), 0 0 20px rgba(139, 92, 246, 0.05)',
+          }}>
+          <div className="flex items-center gap-2 mb-4 text-violet-400">
+            <div className="p-1.5 rounded-lg" style={{ background: 'rgba(139, 92, 246, 0.15)' }}>
+              <Wallet className="w-4 h-4" />
+            </div>
             <h3 className="text-xs font-semibold uppercase tracking-wider">Latest Payslip</h3>
           </div>
           {stats.latestPayslip ? (
@@ -83,14 +104,24 @@ export default async function StaffDashboardPage() {
         </div>
       </div>
 
-      <div className="geo-card !p-0 overflow-hidden">
-        <div className="p-4 border-b border-[#1E293B] bg-[#0F172A] flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-slate-400" />
+      {/* Leave Balances — Amber themed */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{
+          background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(10, 15, 30, 0.9))',
+          border: '1px solid rgba(245, 158, 11, 0.1)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}>
+        <div className="p-4 flex items-center gap-2"
+          style={{ borderBottom: '1px solid rgba(245, 158, 11, 0.1)' }}>
+          <div className="p-1.5 rounded-lg" style={{ background: 'rgba(245, 158, 11, 0.12)' }}>
+            <Calendar className="w-4 h-4 text-amber-400" />
+          </div>
           <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Available Leave Balances</h3>
         </div>
-        <div className="divide-y divide-[#1E293B]">
+        <div>
           {stats.balances.map((b, i) => (
-            <div key={i} className="p-4 flex justify-between items-center bg-[#0F172A]/50">
+            <div key={i} className="p-4 flex justify-between items-center"
+              style={{ borderBottom: i < stats.balances.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
               <span className="text-slate-300 text-sm font-medium">{b.name}</span>
               <span className="text-white font-bold">{b.available} Days</span>
             </div>
@@ -98,8 +129,14 @@ export default async function StaffDashboardPage() {
         </div>
       </div>
       
-      <div className="geo-card !p-4">
-        <h3 className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Your Details</h3>
+      {/* Your Details — Teal themed */}
+      <div className="rounded-2xl p-4"
+        style={{
+          background: 'linear-gradient(145deg, rgba(6, 182, 212, 0.05), rgba(10, 15, 30, 0.9))',
+          border: '1px solid rgba(6, 182, 212, 0.1)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}>
+        <h3 className="text-xs font-semibold text-cyan-400 mb-3 uppercase tracking-wider">Your Details</h3>
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center text-sm">
             <span className="text-slate-500">Outlet</span>

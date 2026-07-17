@@ -155,7 +155,7 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
                       You are {data.distance}m from {outlet.name} (within range).
                     </p>
                   </div>,
-                  { icon: <CheckCircle2 className="w-5 h-5 text-valid" /> }
+                  { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" /> }
                 )
               } else {
                 toast.error(`${actionText} recorded outside range (${data.distance}m)`)
@@ -195,22 +195,41 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
     )
   }
 
+  // Dynamic gradient colors for the button
+  const buttonGradient = canClockIn
+    ? 'linear-gradient(135deg, #10B981, #06B6D4)'
+    : 'linear-gradient(135deg, #F59E0B, #F97316)'
+  const ringColor = canClockIn
+    ? 'rgba(16, 185, 129, 0.2)'
+    : 'rgba(245, 158, 11, 0.2)'
+  const glowColor = canClockIn
+    ? '0 0 50px rgba(16, 185, 129, 0.3), 0 0 100px rgba(6, 182, 212, 0.15)'
+    : '0 0 50px rgba(245, 158, 11, 0.3), 0 0 100px rgba(249, 115, 22, 0.15)'
+  const isDisabled = isLoading || !!geoError || (canClockIn && !isWithinGeofence)
+
   return (
-    <div className="flex flex-col items-center justify-center p-6 bg-[#0F172A] border border-[#1E293B] rounded-2xl shadow-xl">
+    <div className="flex flex-col items-center justify-center p-6 rounded-2xl relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(10, 15, 30, 0.9))',
+        border: '1px solid rgba(139, 92, 246, 0.1)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      }}>
       <div className="mb-8 text-center">
         <h2 className="text-lg font-semibold text-white mb-2">{outlet.name}</h2>
         {geoError ? (
-          <div className="inline-flex items-center gap-2 text-danger bg-danger/10 px-3 py-1.5 rounded-lg text-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
             <AlertTriangle className="w-4 h-4" />
             {geoError}
           </div>
         ) : liveDistance !== null ? (
           <div
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              isWithinGeofence
-                ? 'text-valid bg-valid/10 border border-valid/20'
-                : 'text-danger bg-danger/10 border border-danger/20'
-            }`}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors"
+            style={{
+              background: isWithinGeofence ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${isWithinGeofence ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+              color: isWithinGeofence ? '#34d399' : '#f87171',
+            }}
           >
             <MapPin className="w-4 h-4" />
             {liveDistance}m away
@@ -226,29 +245,57 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
         )}
       </div>
 
-      <button
-        onClick={handleClockAction}
-        disabled={isLoading || !!geoError || (canClockIn && !isWithinGeofence)}
-        className={`relative group flex flex-col items-center justify-center w-48 h-48 rounded-full transition-all duration-300 ${
-          isLoading || geoError || (canClockIn && !isWithinGeofence)
-            ? 'bg-[#1E293B] cursor-not-allowed opacity-70 border-4 border-[#334155]'
-            : canClockIn
-            ? 'bg-accent hover:bg-accent-hover shadow-[0_0_40px_rgba(239,68,68,0.3)] hover:shadow-[0_0_60px_rgba(239,68,68,0.5)] scale-100 hover:scale-105'
-            : 'bg-warn hover:bg-warn/90 shadow-[0_0_40px_rgba(245,158,11,0.2)] hover:shadow-[0_0_60px_rgba(245,158,11,0.4)] scale-100 hover:scale-105'
-        }`}
-      >
-        <div className="absolute inset-2 rounded-full border-2 border-white/20 border-dashed animate-[spin_20s_linear_infinite]" />
-        
-        {isLoading ? (
-          <Loader2 className="w-12 h-12 text-white animate-spin mb-2" />
-        ) : (
-          <Fingerprint className="w-12 h-12 text-white mb-2 group-hover:scale-110 transition-transform duration-300" />
+      {/* Clock Button with animated rings */}
+      <div className="relative">
+        {/* Outer pulsing ring */}
+        {!isDisabled && (
+          <>
+            <div className="absolute inset-0 rounded-full animate-pulse-ring"
+              style={{
+                background: ringColor,
+                transform: 'scale(1.3)',
+                filter: 'blur(8px)',
+              }} />
+            <div className="absolute inset-0 rounded-full animate-pulse-ring"
+              style={{
+                background: ringColor,
+                transform: 'scale(1.15)',
+                filter: 'blur(4px)',
+                animationDelay: '0.5s',
+              }} />
+          </>
         )}
-        
-        <span className="text-white font-bold tracking-wider uppercase">
-          {isLoading ? 'Locating...' : actionText}
-        </span>
-      </button>
+
+        <button
+          onClick={handleClockAction}
+          disabled={isDisabled}
+          className="relative flex flex-col items-center justify-center w-44 h-44 rounded-full transition-all duration-300"
+          style={{
+            background: isDisabled ? 'rgba(30, 41, 59, 0.8)' : buttonGradient,
+            boxShadow: isDisabled ? 'none' : glowColor,
+            border: isDisabled ? '3px solid rgba(71, 85, 105, 0.3)' : '3px solid rgba(255,255,255,0.15)',
+            opacity: isDisabled ? 0.6 : 1,
+            cursor: isDisabled ? 'not-allowed' : 'pointer',
+            transform: isDisabled ? 'scale(1)' : undefined,
+          }}
+          onMouseEnter={(e) => { if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'; }}
+          onMouseLeave={(e) => { if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+        >
+          {/* Inner decorative ring */}
+          <div className="absolute inset-2 rounded-full border-2 border-white/20 border-dashed"
+            style={{ animation: 'spin 20s linear infinite' }} />
+          
+          {isLoading ? (
+            <Loader2 className="w-12 h-12 text-white animate-spin mb-2" />
+          ) : (
+            <Fingerprint className="w-12 h-12 text-white mb-2 transition-transform duration-300" />
+          )}
+          
+          <span className="text-white font-bold tracking-wider uppercase text-sm">
+            {isLoading ? 'Locating...' : actionText}
+          </span>
+        </button>
+      </div>
 
       {lastLog && (
         <p className="mt-8 text-sm text-slate-400">
