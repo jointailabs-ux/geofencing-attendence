@@ -49,7 +49,7 @@ export default async function ManagePinsPage() {
           </div>
         </div>
       ) : (
-        <ManagePinsTable employees={employees as any} />
+        <ManagePinsTable employees={employees} />
       )}
     </div>
   )

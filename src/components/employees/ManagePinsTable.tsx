@@ -3,9 +3,18 @@
 import { useState } from 'react'
 import { adminResetPassword } from '@/app/actions/auth'
 import { toast } from 'sonner'
-import { Shield, Loader2, KeyRound, Check } from 'lucide-react'
+import { Loader2, KeyRound, Check } from 'lucide-react'
 
-export function ManagePinsTable({ employees }: { employees: any[] }) {
+type ManagePinEmployee = {
+  id: string
+  full_name: string
+  employee_code: string
+  role: string
+  pin: string | null
+  outlets: { name: string } | null | { name: string }[]
+}
+
+export function ManagePinsTable({ employees }: { employees: ManagePinEmployee[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newPin, setNewPin] = useState('')
   const [isLoading, setIsLoading] = useState(false)
