@@ -2,27 +2,43 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 export async function login(formData: FormData) {
   const supabase = await createClient()
+  const serviceClient = createServiceClient()
 
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const pin = formData.get('pin') as string
 
-  if (!email || !password) {
-    return { error: 'Email and password are required.' }
+  if (!pin) {
+    return { error: 'PIN is required.' }
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  // 1. Look up the employee by PIN using the service client
+  const { data: employee } = await serviceClient
+    .from('employees')
+    .select('email, role, status')
+    .eq('pin', pin)
+    .single()
+
+  if (!employee) {
+    return { error: 'Invalid PIN.' }
+  }
+
+  if (employee.status === 'inactive') {
+    return { error: 'Your account has been deactivated. Contact your administrator.' }
+  }
+
+  // 2. Authenticate with Supabase Auth using the email and PIN as password
+  const { error } = await supabase.auth.signInWithPassword({ email: employee.email, password: pin })
 
   if (error) {
     let message = 'An unexpected error occurred. Please try again.'
-
     if (error.message.includes('Invalid login credentials')) {
-      message = 'Email or password is incorrect.'
+      message = 'Invalid PIN.'
     } else if (error.message.includes('Email not confirmed')) {
       message = 'Your account has not been activated yet. Contact your administrator.'
     } else if (error.message.includes('Too many requests')) {
@@ -30,34 +46,18 @@ export async function login(formData: FormData) {
     } else if (error.message.includes('network') || error.message.includes('fetch')) {
       message = 'Unable to connect. Check your internet connection.'
     }
-
     return { error: message }
   }
 
-  // Get employee role for redirect
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { error: 'Login failed. Please try again.' }
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('role, status')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (!employee) {
-    await supabase.auth.signOut()
-    return { error: 'No employee record found. Contact your administrator.' }
-  }
-
-  if (employee.status === 'inactive') {
-    await supabase.auth.signOut()
-    return { error: 'Your account has been deactivated. Contact your administrator.' }
-  }
-
   const role = employee.role ?? 'staff'
+
+  // 3. Set the role cookie so middleware doesn't need to query the database
+  cookies().set('user_role', role, { 
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7 // 1 week
+  })
 
   const roleRoutes: Record<string, string> = {
     super_admin: '/admin/dashboard',
@@ -70,7 +70,7 @@ export async function login(formData: FormData) {
 }
 
 // ─── Admin Reset Password ─────────────────────────────────────────────────────
-export async function adminResetPassword(employeeId: string, newPassword: string) {
+export async function adminResetPassword(employeeId: string, newPin: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -83,15 +83,27 @@ export async function adminResetPassword(employeeId: string, newPassword: string
     .single()
 
   if (!caller || caller.role !== 'super_admin') {
-    return { error: 'Only administrators can reset passwords.' }
+    return { error: 'Only administrators can reset PINs.' }
   }
 
-  if (!newPassword || newPassword.length < 8) {
-    return { error: 'Password must be at least 8 characters.' }
+  if (!newPin || newPin.length < 4) {
+    return { error: 'PIN must be at least 4 characters.' }
+  }
+
+  const serviceClient = createServiceClient()
+
+  // Verify PIN is unique
+  const { data: existingPin } = await serviceClient
+    .from('employees')
+    .select('id')
+    .eq('pin', newPin)
+    .single()
+
+  if (existingPin && existingPin.id !== employeeId) {
+    return { error: 'This PIN is already in use.' }
   }
 
   // Get the target employee's auth_user_id
-  const serviceClient = createServiceClient()
   const { data: targetEmployee } = await serviceClient
     .from('employees')
     .select('auth_user_id')
@@ -103,13 +115,23 @@ export async function adminResetPassword(employeeId: string, newPassword: string
   }
 
   // Reset password via admin API
-  const { error } = await serviceClient.auth.admin.updateUserById(
+  const { error: authError } = await serviceClient.auth.admin.updateUserById(
     targetEmployee.auth_user_id,
-    { password: newPassword }
+    { password: newPin }
   )
 
-  if (error) {
-    return { error: 'Failed to reset password. Please try again.' }
+  if (authError) {
+    return { error: 'Failed to reset Auth PIN. Please try again.' }
+  }
+
+  // Update PIN in employees table
+  const { error: dbError } = await serviceClient
+    .from('employees')
+    .update({ pin: newPin })
+    .eq('id', employeeId)
+
+  if (dbError) {
+    return { error: 'Failed to update PIN in database. Please try again.' }
   }
 
   return { success: true }
@@ -119,6 +141,7 @@ export async function adminResetPassword(employeeId: string, newPassword: string
 export async function logout() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  cookies().delete('user_role')
   revalidatePath('/', 'layout')
   redirect('/login')
 }

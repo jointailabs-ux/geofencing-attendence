@@ -23,6 +23,59 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Important Notifications */}
+      {(metrics.pendingLeaves > 0 || metrics.attendancePercentage < 80) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {metrics.pendingLeaves > 0 && (
+            <div className="relative group overflow-hidden rounded-2xl p-5 flex items-center justify-between"
+              style={{
+                background: 'linear-gradient(145deg, rgba(245,158,11,0.15), rgba(10,15,30,0.95))',
+                border: '1px solid rgba(245,158,11,0.25)',
+                boxShadow: '0 8px 32px rgba(245,158,11,0.1)',
+                backdropFilter: 'blur(24px)',
+              }}>
+              <div className="absolute -right-10 -top-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-colors" />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                  <CalendarOff className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold tracking-tight text-base">Action Required</h3>
+                  <p className="text-sm text-amber-400/90 font-medium">{metrics.pendingLeaves} pending leave request(s) need your approval.</p>
+                </div>
+              </div>
+              <a href="/admin/leave" className="relative z-10 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-sm font-bold tracking-wide uppercase px-5 py-2.5 rounded-xl transition-all border border-amber-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                Review
+              </a>
+            </div>
+          )}
+          
+          {metrics.attendancePercentage < 80 && (
+            <div className="relative group overflow-hidden rounded-2xl p-5 flex items-center justify-between"
+              style={{
+                background: 'linear-gradient(145deg, rgba(239,68,68,0.15), rgba(10,15,30,0.95))',
+                border: '1px solid rgba(239,68,68,0.25)',
+                boxShadow: '0 8px 32px rgba(239,68,68,0.1)',
+                backdropFilter: 'blur(24px)',
+              }}>
+              <div className="absolute -right-10 -top-10 w-32 h-32 bg-red-500/10 rounded-full blur-2xl group-hover:bg-red-500/20 transition-colors" />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                  <Activity className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold tracking-tight text-base">Low Attendance Alert</h3>
+                  <p className="text-sm text-red-400/90 font-medium">Current workforce presence is unusually low ({metrics.attendancePercentage}%).</p>
+                </div>
+              </div>
+              <a href="/admin/attendance" className="relative z-10 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-bold tracking-wide uppercase px-5 py-2.5 rounded-xl transition-all border border-red-500/20 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+                Investigate
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Bento Grid Top Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         

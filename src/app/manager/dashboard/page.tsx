@@ -25,6 +25,33 @@ export default async function ManagerDashboardPage() {
         </div>
       </div>
 
+      {/* Important Notifications */}
+      {metrics.pendingLeaves > 0 && (
+        <div className="grid grid-cols-1 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <div className="relative group overflow-hidden rounded-2xl p-5 flex items-center justify-between"
+            style={{
+              background: 'linear-gradient(145deg, rgba(245,158,11,0.15), rgba(10,15,30,0.95))',
+              border: '1px solid rgba(245,158,11,0.25)',
+              boxShadow: '0 8px 32px rgba(245,158,11,0.1)',
+              backdropFilter: 'blur(24px)',
+            }}>
+            <div className="absolute -right-10 -top-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-colors" />
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                <CalendarOff className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-bold tracking-tight text-base">Action Required</h3>
+                <p className="text-sm text-amber-400/90 font-medium">You have {metrics.pendingLeaves} pending leave request(s) awaiting approval.</p>
+              </div>
+            </div>
+            <a href="/manager/leave" className="relative z-10 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-sm font-bold tracking-wide uppercase px-5 py-2.5 rounded-xl transition-all border border-amber-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+              Review Now
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Bento Grid Top Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Large Stat */}

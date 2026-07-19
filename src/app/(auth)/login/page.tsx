@@ -5,7 +5,7 @@ import { login } from '@/app/actions/auth'
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false)
+  const [showPin, setShowPin] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,7 +57,7 @@ export default function LoginPage() {
             Welcome to GeoAttend
         </h1>
         <p className="text-sm text-slate-400 mt-2">
-          Enter your credentials to access the portal
+          Enter your secure PIN to access the portal
         </p>
       </div>
 
@@ -75,39 +75,19 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="relative z-10 space-y-5">
         <div>
-          <label htmlFor="email" className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
-            Email address
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            placeholder="you@company.com"
-            className="w-full rounded-xl px-4 py-3 text-white placeholder:text-slate-600 text-sm focus:outline-none transition-all duration-300 shadow-inner"
-            style={{
-              background: 'rgba(17, 24, 39, 0.6)',
-              border: '1px solid rgba(139, 92, 246, 0.1)',
-            }}
-            onFocus={(e) => { e.target.style.borderColor = 'rgba(139, 92, 246, 0.4)'; e.target.style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.1)'; }}
-            onBlur={(e) => { e.target.style.borderColor = 'rgba(139, 92, 246, 0.1)'; e.target.style.boxShadow = 'none'; }}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="password" className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
-            Password
+          <label htmlFor="pin" className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
+            6-Digit PIN
           </label>
           <div className="relative">
             <input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
+              id="pin"
+              name="pin"
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              pattern="[0-9]*"
               required
-              placeholder="••••••••"
-              className="w-full rounded-xl px-4 py-3 pr-11 text-white placeholder:text-slate-600 text-sm focus:outline-none transition-all duration-300 shadow-inner"
+              placeholder="••••••"
+              className="w-full rounded-xl px-4 py-3 pr-11 text-white placeholder:text-slate-600 text-sm focus:outline-none transition-all duration-300 shadow-inner tracking-[0.5em] text-center font-mono text-xl"
               style={{
                 background: 'rgba(17, 24, 39, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.1)',
@@ -117,11 +97,11 @@ export default function LoginPage() {
             />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setShowPin(!showPin)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-violet-400 transition-colors p-1"
               tabIndex={-1}
             >
-              {showPassword ? (
+              {showPin ? (
                 <EyeOff className="w-4 h-4" />
               ) : (
                 <Eye className="w-4 h-4" />
@@ -148,7 +128,7 @@ export default function LoginPage() {
               Authenticating...
             </>
           ) : (
-            'Sign in securely'
+            'Secure Login'
           )}
         </button>
       </form>

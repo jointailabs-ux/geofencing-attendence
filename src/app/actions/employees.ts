@@ -9,7 +9,7 @@ const EmployeeSchema = z.object({
   employee_code: z.string().min(1, 'Employee ID is required').max(20),
   full_name: z.string().min(1, 'Full name is required').max(100),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  pin: z.string().length(6, 'PIN must be 6 digits').optional(),
   phone: z.string().optional(),
   role: z.enum(['super_admin', 'manager', 'staff']),
   outlet_id: z.string().uuid().optional().or(z.literal('')),
@@ -46,7 +46,7 @@ export async function createEmployee(formData: FormData) {
     employee_code: formData.get('employee_code'),
     full_name: formData.get('full_name'),
     email: formData.get('email'),
-    password: formData.get('password') || undefined,
+    pin: formData.get('pin') || undefined,
     phone: formData.get('phone') || undefined,
     role: formData.get('role'),
     outlet_id: formData.get('outlet_id') || undefined,
@@ -61,9 +61,9 @@ export async function createEmployee(formData: FormData) {
     return { error: messages }
   }
 
-  // Password is required for new employees
-  if (!parsed.data.password) {
-    return { error: 'Password is required for new employees' }
+  // PIN is required for new employees
+  if (!parsed.data.pin) {
+    return { error: '6-Digit PIN is required for new employees' }
   }
 
   // Manager can only create staff in their own outlet
@@ -88,10 +88,21 @@ export async function createEmployee(formData: FormData) {
     return { error: `Employee ID "${parsed.data.employee_code}" is already in use.` }
   }
 
-  // 1. Create auth user with email + password (no invite email needed)
+  // Check if PIN is unique
+  const { data: existingPin } = await serviceClient
+    .from('employees')
+    .select('id')
+    .eq('pin', parsed.data.pin)
+    .limit(1)
+
+  if (existingPin && existingPin.length > 0) {
+    return { error: `This PIN is already in use by another employee.` }
+  }
+
+  // 1. Create auth user with email + pin (as password) (no invite email needed)
   const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
     email: parsed.data.email,
-    password: parsed.data.password,
+    password: parsed.data.pin,
     email_confirm: true, // Mark email as verified immediately
     user_metadata: { full_name: parsed.data.full_name },
   })
@@ -114,6 +125,7 @@ export async function createEmployee(formData: FormData) {
     employee_code: parsed.data.employee_code,
     full_name: parsed.data.full_name,
     email: parsed.data.email,
+    pin: parsed.data.pin,
     phone: parsed.data.phone ?? null,
     role: parsed.data.role,
     outlet_id: parsed.data.outlet_id || null,
@@ -150,8 +162,8 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     join_date: formData.get('join_date'),
   }
 
-  // Password not required for updates
-  const UpdateSchema = EmployeeSchema.omit({ password: true })
+  // PIN not required for updates
+  const UpdateSchema = EmployeeSchema.omit({ pin: true })
   const parsed = UpdateSchema.safeParse(raw)
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(', ') }

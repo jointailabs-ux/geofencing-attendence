@@ -19,6 +19,7 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
 } from 'lucide-react'
 
 interface NavItem {
@@ -38,6 +39,7 @@ const adminNavItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, color: '#8B5CF6' },
   { href: '/admin/outlets', label: 'Outlets', icon: Building2, color: '#06B6D4' },
   { href: '/admin/employees', label: 'Employees', icon: Users, color: '#10B981' },
+  { href: '/admin/manage-pins', label: 'Manage PINs', icon: KeyRound, color: '#EAB308' },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList, color: '#F59E0B' },
   { href: '/admin/leave', label: 'Leave', icon: CalendarOff, color: '#F43F5E' },
   { href: '/admin/payroll', label: 'Payroll', icon: Banknote, color: '#06B6D4' },

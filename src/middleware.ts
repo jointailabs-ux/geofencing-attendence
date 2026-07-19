@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + '/')
   )
 
-  const { supabaseResponse, user, supabase } = await updateSession(request)
+  const { supabaseResponse, user } = await updateSession(request)
 
   // Not logged in + trying to access protected route → redirect to login
   if (!user && !isPublic) {
@@ -56,30 +56,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Retrieve user role from cookie (set during login)
+  const role = request.cookies.get('user_role')?.value ?? 'staff'
+
   // Logged in + on public route → redirect to appropriate dashboard
   if (user && isPublic && pathname !== '/auth/callback') {
-    // Fetch employee role
-    const { data: employee } = await supabase
-      .from('employees')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    const role = employee?.role ?? 'staff'
     const destination = ROLE_ROUTES[role] ?? '/staff/dashboard'
     return NextResponse.redirect(new URL(destination, request.url))
   }
 
   // Role-based route guards — prevent staff from accessing admin routes etc.
   if (user && !isPublic) {
-    const { data: employee } = await supabase
-      .from('employees')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    const role = employee?.role ?? 'staff'
-
     // Prevent staff/manager from accessing /admin/*
     if (pathname.startsWith('/admin') && role !== 'super_admin') {
       return NextResponse.redirect(new URL(ROLE_ROUTES[role] ?? '/staff/dashboard', request.url))

@@ -14,20 +14,13 @@ const employeeSchema = z.object({
   employee_code: z.string().min(1, 'Employee ID is required').max(20),
   full_name: z.string().min(1, 'Full name is required').max(100),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional().or(z.literal('')),
-  confirm_password: z.string().optional().or(z.literal('')),
+  pin: z.string().length(6, 'PIN must be exactly 6 digits').regex(/^\d+$/, 'PIN must contain only numbers').optional().or(z.literal('')),
   phone: z.string().optional(),
   role: z.enum(['super_admin', 'manager', 'staff']),
   outlet_id: z.string().optional(),
   salary_type: z.enum(['fixed', 'daily', 'hourly']),
   base_salary: z.number().min(0, 'Must be positive'),
   join_date: z.string().min(1, 'Join date is required'),
-}).refine((data) => {
-  if (!data.password && !data.confirm_password) return true
-  return data.password === data.confirm_password
-}, {
-  message: 'Passwords do not match',
-  path: ['confirm_password'],
 })
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
@@ -65,8 +58,7 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
       employee_code: employee?.employee_code ?? '',
       full_name: employee?.full_name ?? '',
       email: employee?.email ?? '',
-      password: '',
-      confirm_password: '',
+      pin: '',
       phone: employee?.phone ?? '',
       role: employee?.role ?? 'staff',
       outlet_id: employee?.outlet_id ?? '',
@@ -78,45 +70,23 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
 
   const salaryType = watch('salary_type')
   const selectedRole = watch('role')
-  const passwordValue = watch('password')
-
   const salaryLabel =
     salaryType === 'fixed' ? 'Monthly Salary (₹)' :
     salaryType === 'daily' ? 'Daily Rate (₹)' : 'Hourly Rate (₹)'
 
-  // Password strength indicator
-  const getPasswordStrength = (pass: string) => {
-    if (!pass) return { label: '', color: '', width: '0%' }
-    let score = 0
-    if (pass.length >= 8) score++
-    if (pass.length >= 12) score++
-    if (/[A-Z]/.test(pass)) score++
-    if (/[0-9]/.test(pass)) score++
-    if (/[^A-Za-z0-9]/.test(pass)) score++
-    
-    if (score <= 1) return { label: 'Weak', color: 'bg-red-500', width: '20%' }
-    if (score <= 2) return { label: 'Fair', color: 'bg-orange-500', width: '40%' }
-    if (score <= 3) return { label: 'Good', color: 'bg-yellow-500', width: '60%' }
-    if (score <= 4) return { label: 'Strong', color: 'bg-emerald-500', width: '80%' }
-    return { label: 'Very Strong', color: 'bg-emerald-400', width: '100%' }
-  }
-
-  const passwordStrength = getPasswordStrength(passwordValue || '')
-
   async function onSubmit(data: EmployeeFormData) {
     setIsLoading(true)
 
-    // For new employees, password is required
-    if (!employee && (!data.password || data.password.length < 8)) {
-      toast.error('Password is required (min 8 characters) for new employees')
+    // For new employees, PIN is required
+    if (!employee && (!data.pin || data.pin.length !== 6)) {
+      toast.error('6-Digit PIN is required for new employees')
       setIsLoading(false)
       return
     }
 
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (key === 'confirm_password') return // Don't send confirm_password
-      if (key === 'password' && employee) return // Don't send password on edit
+      if (key === 'pin' && employee) return // Don't send PIN on edit (managed elsewhere)
       if (value !== undefined && value !== null && value !== '') {
         formData.append(key, String(value))
       }
@@ -172,7 +142,7 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
           <div>
             <p className="text-sm font-medium text-white">Admin-managed credentials</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              You set the employee&apos;s email and password. They can log in immediately with these credentials.
+              You set the employee&apos;s email and PIN. They can log in immediately with the PIN.
             </p>
           </div>
         </div>
@@ -186,10 +156,9 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
             <h2 className="geo-card-title">Login Credentials</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
+              <div>
                 <label htmlFor="email" className="field-label">
                   Email address *
-                  <span className="text-slate-600 font-normal ml-1">(used for login)</span>
                 </label>
                 <input
                   id="email"
@@ -202,14 +171,17 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
               </div>
 
               <div>
-                <label htmlFor="password" className="field-label">Password *</label>
+                <label htmlFor="pin" className="field-label">6-Digit PIN *</label>
                 <div className="relative">
                   <input
-                    id="password"
-                    {...register('password')}
+                    id="pin"
+                    {...register('pin')}
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Min. 8 characters"
-                    className="field-input pr-11"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="••••••"
+                    className="field-input pr-11 tracking-[0.2em] font-mono"
                   />
                   <button
                     type="button"
@@ -220,30 +192,7 @@ export function EmployeeForm({ employee, outlets, callerRole }: EmployeeFormProp
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {errors.password && <p className="field-error">{errors.password.message}</p>}
-                {passwordValue && passwordValue.length > 0 && (
-                  <div className="mt-2">
-                    <div className="h-1.5 bg-[#1E293B] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${passwordStrength.color} transition-all duration-300 rounded-full`}
-                        style={{ width: passwordStrength.width }}
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{passwordStrength.label}</p>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="confirm_password" className="field-label">Confirm Password *</label>
-                <input
-                  id="confirm_password"
-                  {...register('confirm_password')}
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Repeat password"
-                  className="field-input"
-                />
-                {errors.confirm_password && <p className="field-error">{errors.confirm_password.message}</p>}
+                {errors.pin && <p className="field-error">{errors.pin.message}</p>}
               </div>
             </div>
           </div>
