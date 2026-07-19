@@ -18,8 +18,7 @@ export async function getAdminDashboardStats(orgId: string) {
     { count: pendingLeaves },
     { data: currPayroll },
     { data: outletsStatsData },
-    { data: recentCheckins },
-    { data: recentLeaves }
+    { data: todayLogs }
   ] = await Promise.all([
     supabase.from('outlets').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
     supabase.from('employees').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
@@ -81,7 +80,14 @@ export async function getAdminDashboardStats(orgId: string) {
   }) || []
 
   // Generate Live Roster from today's logs
-  const liveRosterMap = new Map<string, any>()
+  type LiveRosterEmployee = {
+    id: string
+    name: string
+    role: string
+    status: string
+    lastLogTime: string
+  }
+  const liveRosterMap = new Map<string, LiveRosterEmployee>()
   todayLogs?.forEach(log => {
     const emp = log.employee as unknown as { id: string, full_name: string, role: string }
     liveRosterMap.set(emp.id, {

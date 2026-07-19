@@ -11,7 +11,7 @@ export default async function AdminDashboardPage() {
   const employee = await getCachedEmployee()
   if (!employee) redirect('/login')
 
-  const { metrics, outletBreakdown, recentActivity } = await getAdminDashboardStats(employee.org_id)
+  const { metrics, outletBreakdown, liveRoster } = await getAdminDashboardStats(employee.org_id)
   const trendData = await getAttendanceTrend(employee.org_id)
 
   return (
