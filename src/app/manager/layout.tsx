@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
-import { getCachedEmployee } from '@/lib/auth'
-import { ManagerSidebar } from '@/components/layout/ManagerSidebar'
+import { Suspense } from 'react'
+import { ManagerSidebarWrapper } from '@/components/layout/ManagerSidebarWrapper'
 import { ManagerBottomNav } from '@/components/layout/ManagerBottomNav'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { logout } from '@/app/actions/auth'
@@ -12,26 +11,18 @@ export const metadata: Metadata = {
   title: { template: '%s — GeoAttend Manager', default: 'GeoAttend Manager' },
 }
 
-export default async function ManagerLayout({
+export default function ManagerLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const employee = await getCachedEmployee()
-
-  if (!employee || employee.role !== 'manager') {
-    redirect('/login')
-  }
-
-  const outletName = employee.outlets?.name
-
   return (
     <div className="flex h-screen overflow-hidden bg-navy">
-      <ManagerSidebar
-        userName={employee.full_name}
-        userRole={employee.role}
-        outletName={outletName}
-      />
+      <Suspense fallback={
+        <div className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 animate-pulse" />
+      }>
+        <ManagerSidebarWrapper />
+      </Suspense>
       
       <main className="flex-1 overflow-y-auto pb-20 lg:pb-0 flex flex-col"
         style={{
@@ -57,7 +48,7 @@ export default async function ManagerLayout({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge variant={employee.role} size="sm" showDot={false} />
+            <StatusBadge variant="manager" size="sm" showDot={false} />
             <form action={logout}>
               <button
                 type="submit"

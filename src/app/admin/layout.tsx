@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
-import { getCachedEmployee } from '@/lib/auth'
-import { AdminSidebar } from '@/components/layout/AdminSidebar'
+import { Suspense } from 'react'
+import { AdminSidebarWrapper } from '@/components/layout/AdminSidebarWrapper'
 import { AdminBottomNav } from '@/components/layout/AdminBottomNav'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { logout } from '@/app/actions/auth'
@@ -13,26 +12,18 @@ export const metadata: Metadata = {
   description: 'GeoAttend Admin — Manage outlets, employees, attendance and payroll',
 }
 
-export default async function AdminLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const employee = await getCachedEmployee()
-
-  if (!employee || employee.role !== 'super_admin') {
-    redirect('/login')
-  }
-
-  const outletName = employee.outlets?.name
-
   return (
     <div className="flex h-screen overflow-hidden bg-navy">
-      <AdminSidebar
-        userName={employee.full_name}
-        userRole={employee.role}
-        outletName={outletName}
-      />
+      <Suspense fallback={
+        <div className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 animate-pulse" />
+      }>
+        <AdminSidebarWrapper />
+      </Suspense>
       
       <main className="flex-1 overflow-y-auto pb-20 lg:pb-0 flex flex-col"
         style={{
@@ -58,7 +49,7 @@ export default async function AdminLayout({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge variant={employee.role} size="sm" showDot={false} />
+            <StatusBadge variant="super_admin" size="sm" showDot={false} />
             <form action={logout}>
               <button
                 type="submit"

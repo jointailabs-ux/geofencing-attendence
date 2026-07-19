@@ -4,8 +4,8 @@ import type { Employee } from '@/lib/types/database'
 
 export const getCachedUser = cache(async () => {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.user || null
 })
 
 export const getCachedEmployee = cache(async () => {

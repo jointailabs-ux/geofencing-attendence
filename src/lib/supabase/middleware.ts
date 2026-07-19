@@ -27,8 +27,10 @@ export async function updateSession(request: NextRequest) {
 
   // Refresh session — do not remove this
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const user = session?.user || null
 
   return { supabaseResponse, user, supabase }
 }
