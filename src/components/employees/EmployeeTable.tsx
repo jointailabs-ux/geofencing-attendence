@@ -15,7 +15,7 @@ import {
   MapPin,
   Mail,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+
 
 interface EmployeeTableProps {
   employees: (Employee & { outlet?: Pick<Outlet, 'id' | 'name'> })[]
