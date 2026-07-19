@@ -47,16 +47,10 @@ export async function getAdminDashboardStats(orgId: string) {
       .eq('org_id', orgId),
     supabase
       .from('attendance_logs')
-      .select('id, type, timestamp, status, employee:employees!attendance_logs_employee_id_fkey!inner(full_name, org_id)')
+      .select('id, type, timestamp, status, employee:employees!attendance_logs_employee_id_fkey!inner(id, full_name, role, org_id)')
       .eq('employee.org_id', orgId)
-      .order('timestamp', { ascending: false })
-      .limit(5),
-    supabase
-      .from('leave_requests')
-      .select('id, created_at, status, employee:employees!leave_requests_employee_id_fkey!inner(full_name, org_id), leave_type:leave_types(name)')
-      .eq('employee.org_id', orgId)
-      .order('created_at', { ascending: false })
-      .limit(5)
+      .gte('timestamp', startOfDay)
+      .order('timestamp', { ascending: true })
   ])
 
   // Calculate unique present employees count today
@@ -86,25 +80,22 @@ export async function getAdminDashboardStats(orgId: string) {
     }
   }) || []
 
-  // Combine and sort recent activity
-  const combinedActivity = [
-    ...(recentCheckins || []).map(c => ({
-      id: `checkin-${c.id}`,
-      type: c.type === 'check_in' ? 'Check In' : 'Check Out',
-      timestamp: c.timestamp,
-      employee_name: (c.employee as unknown as { full_name: string }).full_name,
-      status: c.status,
-      detail: ''
-    })),
-    ...(recentLeaves || []).map(l => ({
-      id: `leave-${l.id}`,
-      type: 'Leave Request',
-      timestamp: l.created_at,
-      employee_name: (l.employee as unknown as { full_name: string }).full_name,
-      status: l.status,
-      detail: (l.leave_type as unknown as { name: string })?.name
-    }))
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8)
+  // Generate Live Roster from today's logs
+  const liveRosterMap = new Map<string, any>()
+  todayLogs?.forEach(log => {
+    const emp = log.employee as unknown as { id: string, full_name: string, role: string }
+    liveRosterMap.set(emp.id, {
+      id: emp.id,
+      name: emp.full_name,
+      role: emp.role,
+      status: log.type === 'check_in' ? 'checked_in' : 'checked_out',
+      lastLogTime: log.timestamp
+    })
+  })
+  
+  // Sort by most recent activity
+  const liveRoster = Array.from(liveRosterMap.values())
+    .sort((a, b) => new Date(b.lastLogTime).getTime() - new Date(a.lastLogTime).getTime())
 
   return {
     metrics: {
@@ -115,7 +106,7 @@ export async function getAdminDashboardStats(orgId: string) {
       payrollCost
     },
     outletBreakdown,
-    recentActivity: combinedActivity
+    liveRoster
   }
 }
 

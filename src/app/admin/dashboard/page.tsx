@@ -2,7 +2,7 @@ import { getCachedEmployee } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getAdminDashboardStats, getAttendanceTrend } from '@/app/actions/dashboard'
 import { AttendanceTrendChart } from '@/components/dashboard/AttendanceTrendChart'
-import { Building2, Users, IndianRupee, CalendarOff, Activity, ArrowUpRight } from 'lucide-react'
+import { Building2, Users, IndianRupee, CalendarOff, Activity, ArrowUpRight, Clock } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Admin Dashboard' }
@@ -172,26 +172,48 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Activity Feed */}
+        {/* Live Roster */}
         <div className="rounded-3xl p-6 bg-white/[0.02] border border-white/5 flex flex-col">
-          <h2 className="text-lg font-bold text-white mb-6">Activity Feed</h2>
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2 -mr-2">
-            {recentActivity.length === 0 ? (
-              <div className="text-center text-slate-500 text-sm py-8">No recent activity.</div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live Roster
+            </h2>
+          </div>
+          <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+            {liveRoster.length === 0 ? (
+              <div className="text-center text-slate-500 text-sm py-8">No workforce activity today.</div>
             ) : (
-              recentActivity.map((act) => (
-                <div key={act.id} className="group relative pl-4 border-l-2 border-white/10 hover:border-violet-500/50 transition-colors py-1">
-                  <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-slate-800 border-2 border-slate-600 group-hover:border-violet-500 group-hover:bg-violet-400 transition-colors" />
-                  <p className="text-sm font-semibold text-slate-200">{act.employee_name}</p>
-                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                    {act.type === 'Leave Request' ? <CalendarOff className="w-3 h-3 text-amber-400" /> : <Activity className="w-3 h-3 text-emerald-400" />}
-                    {act.type} {act.detail && `— ${act.detail}`}
-                  </p>
-                  <p className="text-[10px] text-slate-600 font-mono mt-1">
-                    {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              ))
+              <div className="space-y-3">
+                {liveRoster.map((emp) => (
+                  <div key={emp.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 border border-slate-700">
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white leading-none">{emp.name}</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{emp.role.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {emp.status === 'checked_in' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          WORKING
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                          CHECKED OUT
+                        </span>
+                      )}
+                      <p className="text-[10px] text-slate-500 mt-1.5 flex items-center justify-end gap-1 font-mono">
+                        <Clock className="w-3 h-3 text-slate-600" />
+                        {new Date(emp.lastLogTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
