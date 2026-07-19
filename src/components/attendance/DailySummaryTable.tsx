@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { resolveAttendanceFlag } from '@/app/actions/attendance'
