@@ -123,35 +123,36 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
           {filtered.map((emp) => {
             const roleColor = getRoleColor(emp.role)
             return (
-              <div key={emp.id} className="group relative rounded-3xl p-5 bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-300 overflow-hidden flex flex-col h-full hover:shadow-2xl hover:border-white/10">
+              <div key={emp.id} className="group relative rounded-3xl mt-6 p-1 flex flex-col h-full hover:-translate-y-1 transition-all duration-500 shadow-2xl hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] border border-white/10"
+                style={{
+                  background: roleColor === 'violet' ? 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)' :
+                              roleColor === 'cyan' ? 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)' :
+                              'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                }}>
                 
-                {/* Ambient glow based on role */}
-                <div className={cn(
-                  "absolute top-0 right-0 w-32 h-32 blur-[50px] rounded-full pointer-events-none opacity-20 group-hover:opacity-40 transition-opacity duration-500",
-                  roleColor === 'violet' ? 'bg-violet-500' : roleColor === 'cyan' ? 'bg-cyan-500' : 'bg-emerald-500'
-                )} />
+                {/* Floating Detached Avatar */}
+                <div className="absolute -top-8 left-6 z-20 w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-2xl border-4 border-[#0a0f1e] text-white"
+                  style={{
+                    background: roleColor === 'violet' ? 'linear-gradient(135deg, #c084fc, #ec4899)' :
+                                roleColor === 'cyan' ? 'linear-gradient(135deg, #22d3ee, #3b82f6)' :
+                                'linear-gradient(135deg, #34d399, #059669)'
+                  }}>
+                  {emp.full_name.charAt(0).toUpperCase()}
+                </div>
 
-                <div className="relative z-10 flex flex-col h-full">
-                  {/* Header: Avatar & Status */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold border shadow-lg",
-                      roleColor === 'violet' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 
-                      roleColor === 'cyan' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 
-                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    )}>
-                      {emp.full_name.charAt(0).toUpperCase()}
-                    </div>
-                    <StatusBadge variant={emp.status} size="sm" />
-                  </div>
+                {/* Status Badge floating on top right */}
+                <div className="absolute -top-3 right-4 z-20 shadow-lg rounded-full">
+                  <StatusBadge variant={emp.status} size="sm" />
+                </div>
 
+                <div className="relative z-10 flex flex-col h-full bg-slate-950/70 backdrop-blur-md rounded-[22px] pt-10 px-5 pb-5 transition-colors duration-500 group-hover:bg-slate-950/50">
                   {/* Info */}
                   <div className="mb-4 flex-1">
-                    <h3 className="text-lg font-bold text-white group-hover:text-white transition-colors">{emp.full_name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
+                    <h3 className="text-xl font-bold text-white group-hover:text-white drop-shadow-md">{emp.full_name}</h3>
+                    <div className="flex items-center gap-2 mt-2">
                       <StatusBadge variant={emp.role} size="sm" showDot={false} />
                       {emp.employee_code && (
-                        <span className="text-[10px] font-mono bg-white/5 text-slate-400 px-2 py-0.5 rounded-full border border-white/5">
+                        <span className="text-[10px] font-bold font-mono bg-white text-slate-900 px-2 py-0.5 rounded-md shadow-sm">
                           {emp.employee_code}
                         </span>
                       )}
@@ -159,44 +160,44 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
                   </div>
 
                   {/* Details List */}
-                  <div className="space-y-2 mb-6">
-                    <div className="flex items-center gap-2.5 text-sm text-slate-400">
-                      <Mail className="w-3.5 h-3.5 opacity-70" />
+                  <div className="space-y-3 mb-6 bg-white/5 border border-white/10 p-3 rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
+                    <div className="flex items-center gap-2.5 text-sm text-white/80 font-medium">
+                      <Mail className="w-4 h-4 opacity-70" />
                       <span className="truncate">{emp.email}</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-sm text-slate-400">
-                      <MapPin className="w-3.5 h-3.5 opacity-70" />
+                    <div className="flex items-center gap-2.5 text-sm text-white/80 font-medium">
+                      <MapPin className="w-4 h-4 opacity-70" />
                       <span className="truncate">{emp.outlet?.name ?? 'No Outlet'}</span>
                     </div>
                   </div>
 
                   {/* Actions Footer */}
-                  <div className="mt-auto pt-4 border-t border-white/5 flex gap-2">
+                  <div className="mt-auto pt-4 border-t border-white/20 flex gap-2">
                     <Link
                       href={`${basePath}/employees/${emp.id}/edit`}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-white/[0.03] text-sm font-semibold text-white hover:bg-white/[0.08] transition-colors border border-white/5"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-sm font-bold text-white hover:bg-white/20 transition-all hover:shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
+                      <Edit2 className="w-4 h-4" />
                       Edit
                     </Link>
 
                     {emp.status === 'active' ? (
                       <div className="relative flex-1">
                         {actionId === emp.id ? (
-                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-3 bg-slate-800 rounded-xl border border-red-500/30 shadow-2xl z-20">
-                            <p className="text-xs text-center text-slate-300 mb-3 font-medium">Deactivate account?</p>
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-3 bg-red-950/90 backdrop-blur-xl rounded-xl border border-red-500/50 shadow-2xl z-30">
+                            <p className="text-xs text-center text-white mb-3 font-bold">Deactivate account?</p>
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleDeactivate(emp.id)}
                                 disabled={loadingId === emp.id}
-                                className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-1.5 rounded-lg hover:bg-red-500/30 transition-colors flex justify-center"
+                                className="flex-1 bg-red-500 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-red-400 transition-colors flex justify-center shadow-md"
                               >
                                 {loadingId === emp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes'}
                               </button>
                               <button
                                 onClick={() => setActionId(null)}
                                 disabled={loadingId === emp.id}
-                                className="flex-1 bg-white/10 text-slate-300 text-xs font-bold py-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                                className="flex-1 bg-white/20 text-white text-xs font-bold py-1.5 rounded-lg hover:bg-white/30 transition-colors"
                               >
                                 No
                               </button>
@@ -205,9 +206,9 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
                         ) : null}
                         <button
                           onClick={() => setActionId(emp.id)}
-                          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 text-sm font-semibold text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/20 backdrop-blur-md border border-red-500/30 text-sm font-bold text-red-200 hover:bg-red-500/40 hover:text-white transition-all hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
                         >
-                          <UserX className="w-3.5 h-3.5" />
+                          <UserX className="w-4 h-4" />
                           Disable
                         </button>
                       </div>
@@ -215,9 +216,9 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
                       <button
                         onClick={() => handleReactivate(emp.id)}
                         disabled={loadingId === emp.id}
-                        className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-emerald-500/10 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20"
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 text-sm font-bold text-emerald-200 hover:bg-emerald-500/40 hover:text-white transition-all hover:shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                       >
-                        {loadingId === emp.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
+                        {loadingId === emp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
                         Enable
                       </button>
                     )}

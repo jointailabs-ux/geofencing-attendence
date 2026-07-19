@@ -185,34 +185,55 @@ export default async function AdminDashboardPage() {
               <div className="text-center text-slate-500 text-sm py-8">No workforce activity today.</div>
             ) : (
               <div className="space-y-3">
-                {liveRoster.map((emp) => (
-                  <div key={emp.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 border border-slate-700">
-                        {emp.name.charAt(0)}
+                {liveRoster.map((emp) => {
+                  // Generate a deterministic gradient for the avatar
+                  const colors = [
+                    'linear-gradient(135deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%)',
+                    'linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%)',
+                    'linear-gradient(120deg, #fccb90 0%, #d57eeb 100%)',
+                    'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%)',
+                    'linear-gradient(120deg, #f093fb 0%, #f5576c 100%)'
+                  ];
+                  const colorIdx = emp.name.length % colors.length;
+                  const gradient = colors[colorIdx];
+
+                  return (
+                    <div key={emp.id} className="group relative flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:border-white/10 overflow-hidden">
+                      {/* Ambient hover glow */}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 pointer-events-none" style={{ background: gradient }} />
+
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-slate-900 shadow-md"
+                          style={{ background: gradient }}>
+                          {emp.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white group-hover:text-slate-100 transition-colors leading-none">{emp.name}</p>
+                          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-1">{emp.role.replace('_', ' ')}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white leading-none">{emp.name}</p>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{emp.role.replace('_', ' ')}</p>
+                      <div className="text-right relative z-10">
+                        {emp.status === 'checked_in' ? (
+                          <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            WORKING
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-800/50 text-slate-400 border border-slate-700/50">
+                            CHECKED OUT
+                          </span>
+                        )}
+                        <p className="text-[10px] text-slate-500 mt-1.5 flex items-center justify-end gap-1 font-mono">
+                          <Clock className="w-3 h-3 text-slate-600" />
+                          {new Date(emp.lastLogTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      {emp.status === 'checked_in' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          WORKING
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                          CHECKED OUT
-                        </span>
-                      )}
-                      <p className="text-[10px] text-slate-500 mt-1.5 flex items-center justify-end gap-1 font-mono">
-                        <Clock className="w-3 h-3 text-slate-600" />
-                        {new Date(emp.lastLogTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
