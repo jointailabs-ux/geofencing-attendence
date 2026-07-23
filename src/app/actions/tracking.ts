@@ -103,10 +103,33 @@ export async function getLatestPingsForOrg(orgId: string) {
   if (!employees || employees.length === 0) return []
 
   const empIds = employees.map(e => e.id)
+  const start = getISTStartOfDay().toISOString()
+  const end = getISTEndOfDay().toISOString()
 
-  // Get last ping for each employee (using distinct on employee_id)
+  // Get last ping for each employee only if they are clocked in
   const results = await Promise.all(
     empIds.map(async (empId) => {
+      const emp = employees.find(e => e.id === empId)
+
+      // Verify if employee is currently clocked in today
+      const { data: logs } = await serviceClient
+        .from('attendance_logs')
+        .select('type')
+        .eq('employee_id', empId)
+        .gte('timestamp', start)
+        .lte('timestamp', end)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+
+      const isClockedIn = logs && logs.length > 0 && logs[0].type === 'check_in'
+
+      if (!isClockedIn) {
+        return {
+          employee: emp,
+          lastPing: null,
+        }
+      }
+
       const { data: pings } = await serviceClient
         .from('location_pings')
         .select('*')
@@ -114,7 +137,6 @@ export async function getLatestPingsForOrg(orgId: string) {
         .order('created_at', { ascending: false })
         .limit(1)
 
-      const emp = employees.find(e => e.id === empId)
       return {
         employee: emp,
         lastPing: pings?.[0] || null,

@@ -92,6 +92,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Employee not found or inactive.' }, { status: 404 })
     }
 
+    // Verify if employee is currently clocked in today (shift is active)
+    const start = getISTStartOfDay().toISOString()
+    const end = getISTEndOfDay().toISOString()
+
+    const { data: logs } = await supabase
+      .from('attendance_logs')
+      .select('type')
+      .eq('employee_id', employee.id)
+      .gte('timestamp', start)
+      .lte('timestamp', end)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+
+    const isClockedIn = logs && logs.length > 0 && logs[0].type === 'check_in'
+
+    if (!isClockedIn) {
+      // Discard location ping to respect privacy outside shift hours.
+      return NextResponse.json([])
+    }
+
     // 5. Geofence check
     let isInsideGeofence = false
     let nearestOutletId: string | null = null
@@ -135,8 +155,7 @@ export async function POST(req: Request) {
 
     // 7. Auto break/resume detection
     if (employee.outlet_id) {
-      const start = getISTStartOfDay().toISOString()
-      const end = getISTEndOfDay().toISOString()
+      // Reuse outer start and end dates
 
       // Get today's last attendance log
       const { data: lastLogs } = await supabase

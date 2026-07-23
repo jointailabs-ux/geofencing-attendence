@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
 import { autoCheckOutOfflineEmployees } from '@/app/actions/tracking'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -42,9 +43,31 @@ export async function GET(_req: Request) {
       return NextResponse.json({ data: [] })
     }
 
-    // Get last ping for each employee
+    const start = getISTStartOfDay().toISOString()
+    const end = getISTEndOfDay().toISOString()
+
+    // Get last ping for each employee only if they are clocked in today
     const results = await Promise.all(
       employees.map(async (emp) => {
+        // Verify if employee is currently clocked in today
+        const { data: logs } = await serviceClient
+          .from('attendance_logs')
+          .select('type')
+          .eq('employee_id', emp.id)
+          .gte('timestamp', start)
+          .lte('timestamp', end)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+
+        const isClockedIn = logs && logs.length > 0 && logs[0].type === 'check_in'
+
+        if (!isClockedIn) {
+          return {
+            employee: emp,
+            lastPing: null,
+          }
+        }
+
         const { data: pings } = await serviceClient
           .from('location_pings')
           .select('latitude, longitude, accuracy, battery, connection_type, velocity, is_inside_geofence, distance_from_outlet, created_at')
