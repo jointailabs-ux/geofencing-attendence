@@ -10,9 +10,8 @@ const checkoutSchema = z.object({
 })
 
 // Security constants
-const MAX_GPS_ACCURACY_METERS = 100
-const MIN_SECONDS_BETWEEN_ACTIONS = 60
-const MIN_SESSION_SECONDS = 60 // Minimum 1 minute between check-in and check-out
+const MAX_GPS_ACCURACY_METERS = 3000
+const MIN_SECONDS_BETWEEN_ACTIONS = 3
 
 export async function POST(req: Request) {
   try {
@@ -54,10 +53,6 @@ export async function POST(req: Request) {
 
     if (employee.status === 'inactive') {
       return NextResponse.json({ error: 'Your account is deactivated. Contact your administrator.' }, { status: 403 })
-    }
-
-    if (employee.role !== 'staff') {
-      return NextResponse.json({ error: 'Only staff can check out' }, { status: 403 })
     }
 
     if (!employee.outlet_id || !employee.outlets) {
@@ -104,14 +99,6 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: `Please wait ${waitSeconds} seconds before your next action.` },
         { status: 429 }
-      )
-    }
-
-    // Minimum session duration check — prevent accidental immediate checkout
-    if (secondsSinceLast < MIN_SESSION_SECONDS) {
-      return NextResponse.json(
-        { error: 'You must be checked in for at least 1 minute before checking out.' },
-        { status: 400 }
       )
     }
 

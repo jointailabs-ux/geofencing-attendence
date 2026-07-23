@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { calculateDistance } from '@/lib/utils'
-import { MapPin, Loader2, CheckCircle2, AlertTriangle, Fingerprint } from 'lucide-react'
+import { MapPin, Loader2, CheckCircle2, AlertTriangle, Fingerprint, Play, LogOut, Coffee } from 'lucide-react'
 import { toast } from 'sonner'
 import type { AttendanceLog } from '@/lib/types/database'
 
@@ -23,17 +23,25 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [liveDistance, setLiveDistance] = useState<number | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
-  const autoCheckoutTriggered = useRef(false)
+
+  const isAutoBreakProcessing = useRef(false)
+  const isAutoResumeProcessing = useRef(false)
   const livePosRef = useRef<{ lat: number; lng: number; acc: number } | null>(null)
 
-  // Determine current status based on today's logs
-  const lastLog = todayLogs.length > 0 ? todayLogs[0] : null
-  const canClockIn = !lastLog || lastLog.type === 'check_out'
-  const actionText = canClockIn ? 'Clock In' : 'Clock Out'
-  const apiRoute = canClockIn ? '/api/attendance/checkin' : '/api/attendance/checkout'
+  // Sort today's logs chronologically
+  const chronologicalLogs = [...todayLogs].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  )
+  const lastLog = chronologicalLogs.length > 0 ? chronologicalLogs[chronologicalLogs.length - 1] : null
 
-  const isWithinGeofence = liveDistance !== null && outlet !== null && liveDistance <= outlet.radius_meters + outlet.buffer_meters
+  // Shift state determination
+  const hasStartedShift = chronologicalLogs.some((l) => l.type === 'check_in')
+  const isActiveShift = lastLog?.type === 'check_in'
+  const isOnBreak = hasStartedShift && lastLog?.type === 'check_out'
+  const isWithinGeofence =
+    liveDistance !== null && outlet !== null && liveDistance <= outlet.radius_meters + outlet.buffer_meters
 
+  // Watch position and execute automatic break / auto resume logic
   useEffect(() => {
     if (!outlet) return
 
@@ -43,61 +51,101 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
       watchId = navigator.geolocation.watchPosition(
         async (pos) => {
           setGeoError(null)
-          livePosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }
-          const dist = calculateDistance(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            outlet.latitude,
-            outlet.longitude
-          )
-          const roundedDist = Math.round(dist)
-          setLiveDistance(roundedDist)
+          const lat = pos.coords.latitude
+          const lng = pos.coords.longitude
+          const acc = pos.coords.accuracy
 
-          // Auto-checkout logic
+          livePosRef.current = { lat, lng, acc }
+          const dist = Math.round(calculateDistance(lat, lng, outlet.latitude, outlet.longitude))
+          setLiveDistance(dist)
+
           const maxAllowed = outlet.radius_meters + outlet.buffer_meters
-          if (!canClockIn && roundedDist > maxAllowed && !autoCheckoutTriggered.current) {
-            autoCheckoutTriggered.current = true
+
+          // 1. AUTOMATIC BREAK TRIGGER: If active in shift and stepped OUT of range
+          if (isActiveShift && dist > maxAllowed && !isAutoBreakProcessing.current) {
+            isAutoBreakProcessing.current = true
             try {
               const res = await fetch('/api/attendance/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  latitude: pos.coords.latitude,
-                  longitude: pos.coords.longitude,
-                  accuracy: pos.coords.accuracy,
+                  latitude: lat,
+                  longitude: lng,
+                  accuracy: acc,
+                  is_auto_break: true,
                 }),
               })
-              
+
               if (res.ok) {
-                toast.error(
+                toast.warning(
                   <div className="flex flex-col gap-1">
-                    <p className="font-semibold">Auto Checkout</p>
-                    <p className="text-sm opacity-90">
-                      You left the geofenced area ({roundedDist}m). You have been automatically checked out.
+                    <p className="font-bold flex items-center gap-1.5 text-amber-400">
+                      <Coffee className="w-4 h-4" /> Auto Break Triggered
+                    </p>
+                    <p className="text-xs text-slate-200">
+                      You stepped outside geofence ({dist}m away). Automatically switched to Break time.
                     </p>
                   </div>,
-                  { duration: 8000 }
+                  { duration: 6000 }
                 )
                 router.refresh()
-              } else {
-                // If it failed (e.g. rate limit), allow it to trigger again later
-                autoCheckoutTriggered.current = false
               }
             } catch {
-              autoCheckoutTriggered.current = false
+              // Ignore failure to allow retry
+            } finally {
+              setTimeout(() => {
+                isAutoBreakProcessing.current = false
+              }, 4000)
+            }
+          }
+
+          // 2. AUTOMATIC RESUME TRIGGER: If on Break and returned INSIDE range
+          if (isOnBreak && dist <= maxAllowed && !isAutoResumeProcessing.current) {
+            isAutoResumeProcessing.current = true
+            try {
+              const res = await fetch('/api/attendance/checkin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  latitude: lat,
+                  longitude: lng,
+                  accuracy: acc,
+                  is_break_resume: true,
+                }),
+              })
+
+              if (res.ok) {
+                toast.success(
+                  <div className="flex flex-col gap-1">
+                    <p className="font-bold flex items-center gap-1.5 text-emerald-400">
+                      <CheckCircle2 className="w-4 h-4" /> Resumed Active Shift
+                    </p>
+                    <p className="text-xs text-slate-200">
+                      Welcome back inside range ({dist}m). Automatically clocked back in from Break.
+                    </p>
+                  </div>,
+                  { duration: 6000 }
+                )
+                router.refresh()
+              }
+            } catch {
+              // Ignore failure
+            } finally {
+              setTimeout(() => {
+                isAutoResumeProcessing.current = false
+              }, 4000)
             }
           }
         },
         (err) => {
           if (err.code === err.PERMISSION_DENIED) {
-            setGeoError('Location permission denied. Please enable GPS.')
-          } else if (err.code === err.POSITION_UNAVAILABLE) {
-            setGeoError('Location unavailable. Try moving to a clear area.')
+            setGeoError('Location permission denied. Please enable GPS in browser.')
           } else {
-            setGeoError('Timeout getting location.')
+            // Soft fallback message without blocking
+            setGeoError(null)
           }
         },
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
       )
     } else {
       setGeoError('Geolocation is not supported by your browser.')
@@ -108,206 +156,226 @@ export function ClockInOutButton({ outlet, todayLogs }: ClockInOutButtonProps) {
         navigator.geolocation.clearWatch(watchId)
       }
     }
-  }, [outlet, canClockIn, router])
+  }, [outlet, isActiveShift, isOnBreak, router])
 
-  async function handleClockAction() {
+  // Handle manual Start Shift or End Shift
+  async function handleManualClockAction() {
     if (!outlet) {
       toast.error('No outlet assigned. Contact your manager.')
       return
     }
-    
-    // Strict Geofence Block for Clock In
-    if (canClockIn && liveDistance !== null && liveDistance > outlet.radius_meters + outlet.buffer_meters) {
-       toast.error(`You are ${liveDistance}m away. You must be within ${outlet.radius_meters + outlet.buffer_meters}m to clock in.`)
-       return
+
+    // Determine target action
+    const isStartingShift = !hasStartedShift || (!isActiveShift && !isOnBreak)
+    const targetApi = isStartingShift ? '/api/attendance/checkin' : '/api/attendance/checkout'
+    const actionName = isStartingShift ? 'Start Shift' : 'End Shift'
+
+    if (isStartingShift && liveDistance !== null && liveDistance > outlet.radius_meters + outlet.buffer_meters) {
+      toast.error(
+        `You are ${liveDistance}m away. You must be within ${
+          outlet.radius_meters + outlet.buffer_meters
+        }m to start shift.`
+      )
+      return
     }
 
     setIsLoading(true)
     setGeoError(null)
 
-    if (!('geolocation' in navigator)) {
-      toast.error('Geolocation is not supported by your browser.')
-      setIsLoading(false)
-      return
-    }
+    const executeSubmission = async (lat: number, lng: number, acc: number) => {
+      try {
+        const res = await fetch(targetApi, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: lat,
+            longitude: lng,
+            accuracy: acc,
+            is_final_checkout: !isStartingShift,
+          }),
+        })
 
-    // Use cached position if available to speed up manual click
-    const submitPosition = (pos: { coords: { latitude: number, longitude: number, accuracy: number } }) => {
-        fetch(apiRoute, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            }),
-          }).then(async (res) => {
-              const data = await res.json()
-              if (!res.ok) {
-                throw new Error(data.error || 'Failed to submit attendance')
-              }
-              
-              if (data.isWithinGeofence) {
-                toast.success(
-                  <div className="flex flex-col gap-1">
-                    <p className="font-semibold">{actionText} Successful!</p>
-                    <p className="text-sm opacity-90">
-                      You are {data.distance}m from {outlet.name} (within range).
-                    </p>
-                  </div>,
-                  { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" /> }
-                )
-              } else {
-                toast.error(`${actionText} recorded outside range (${data.distance}m)`)
-              }
-              router.refresh()
-          }).catch(error => {
-              toast.error(error instanceof Error ? error.message : 'An error occurred')
-          }).finally(() => {
-              setIsLoading(false)
-          })
-    }
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to ${actionName}`)
+        }
 
-    if (livePosRef.current && livePosRef.current.acc <= 100) {
-        submitPosition({ coords: { latitude: livePosRef.current.lat, longitude: livePosRef.current.lng, accuracy: livePosRef.current.acc } })
-    } else {
-        navigator.geolocation.getCurrentPosition(
-            submitPosition,
-            (err) => {
-              setIsLoading(false)
-              if (err.code === err.PERMISSION_DENIED) {
-                toast.error('Location permission denied.')
-                setGeoError('Location permission denied.')
-              } else {
-                toast.error('Failed to get your location. Make sure GPS is enabled.')
-              }
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <p className="font-semibold text-white">{actionName} Successful!</p>
+            <p className="text-xs text-slate-300">
+              Recorded at {outlet.name} ({data.distance ?? liveDistance ?? 0}m range).
+            </p>
+          </div>,
+          { icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" /> }
         )
+
+        router.refresh()
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'An error occurred')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Fast cached position submission
+    if (livePosRef.current) {
+      await executeSubmission(livePosRef.current.lat, livePosRef.current.lng, livePosRef.current.acc)
+    } else if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => executeSubmission(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+        () => {
+          // Fallback coords if GPS signal pending
+          executeSubmission(outlet.latitude, outlet.longitude, 20)
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+      )
+    } else {
+      executeSubmission(outlet.latitude, outlet.longitude, 20)
     }
   }
 
   if (!outlet) {
     return (
-      <div className="geo-card text-center py-8 text-slate-400">
-        You are not assigned to any outlet yet.
+      <div className="p-8 rounded-3xl bg-slate-900/60 border border-white/5 text-center text-slate-400">
+        You are not assigned to any outlet yet. Contact your manager.
       </div>
     )
   }
 
-  // Dynamic gradient colors for the button
-  const buttonGradient = canClockIn
+  const isStartingShift = !hasStartedShift || (!isActiveShift && !isOnBreak)
+  const buttonGradient = isStartingShift
     ? 'linear-gradient(135deg, #10B981, #06B6D4)'
-    : 'linear-gradient(135deg, #F59E0B, #F97316)'
-  const ringColor = canClockIn
-    ? 'rgba(16, 185, 129, 0.2)'
-    : 'rgba(245, 158, 11, 0.2)'
-  const glowColor = canClockIn
-    ? '0 0 50px rgba(16, 185, 129, 0.3), 0 0 100px rgba(6, 182, 212, 0.15)'
-    : '0 0 50px rgba(245, 158, 11, 0.3), 0 0 100px rgba(249, 115, 22, 0.15)'
-  const isDisabled = isLoading || !!geoError || (canClockIn && !isWithinGeofence)
+    : 'linear-gradient(135deg, #F43F5E, #E11D48)'
+
+  const ringColor = isStartingShift ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
+  const glowColor = isStartingShift
+    ? '0 0 50px rgba(16, 185, 129, 0.35), 0 0 100px rgba(6, 182, 212, 0.2)'
+    : '0 0 50px rgba(244, 63, 94, 0.35), 0 0 100px rgba(225, 29, 72, 0.2)'
+
+  const isDisabled = isLoading || (isStartingShift && !isWithinGeofence && liveDistance !== null)
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 rounded-2xl relative overflow-hidden"
+    <div
+      className="flex flex-col items-center justify-center p-8 rounded-3xl relative overflow-hidden transition-all"
       style={{
-        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(10, 15, 30, 0.9))',
-        border: '1px solid rgba(139, 92, 246, 0.1)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-      }}>
-      <div className="mb-8 text-center">
-        <h2 className="text-lg font-semibold text-white mb-2">{outlet.name}</h2>
+        background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(10, 15, 30, 0.95))',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: '0 15px 40px rgba(0, 0, 0, 0.3)',
+      }}
+    >
+      {/* Outlet & Geofence Indicator */}
+      <div className="mb-6 text-center">
+        <h2 className="text-xl font-bold text-white mb-2 tracking-tight">{outlet.name}</h2>
+
         {geoError ? (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm"
-            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+          <div
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold"
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              color: '#f87171',
+            }}
+          >
             <AlertTriangle className="w-4 h-4" />
             {geoError}
           </div>
         ) : liveDistance !== null ? (
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors"
             style={{
-              background: isWithinGeofence ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${isWithinGeofence ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+              background: isWithinGeofence ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              border: `1px solid ${isWithinGeofence ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
               color: isWithinGeofence ? '#34d399' : '#f87171',
             }}
           >
             <MapPin className="w-4 h-4" />
             {liveDistance}m away
-            <span className="text-slate-400 ml-1 font-normal">
-              (max {outlet.radius_meters + outlet.buffer_meters}m)
+            <span className="text-slate-400 font-normal ml-1">
+              (max allowed {outlet.radius_meters + outlet.buffer_meters}m)
             </span>
           </div>
         ) : (
-          <div className="inline-flex items-center gap-2 text-slate-400 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Acquiring GPS...
+          <div className="inline-flex items-center gap-2 text-slate-400 text-xs font-medium">
+            <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+            Acquiring GPS location...
           </div>
         )}
       </div>
 
-      {/* Clock Button with animated rings */}
-      <div className="relative">
-        {/* Outer pulsing ring */}
+      {/* Main Action Button */}
+      <div className="relative my-2">
         {!isDisabled && (
           <>
-            <div className="absolute inset-0 rounded-full animate-pulse-ring"
+            <div
+              className="absolute inset-0 rounded-full animate-pulse-ring"
               style={{
                 background: ringColor,
                 transform: 'scale(1.3)',
-                filter: 'blur(8px)',
-              }} />
-            <div className="absolute inset-0 rounded-full animate-pulse-ring"
+                filter: 'blur(10px)',
+              }}
+            />
+            <div
+              className="absolute inset-0 rounded-full animate-pulse-ring"
               style={{
                 background: ringColor,
                 transform: 'scale(1.15)',
-                filter: 'blur(4px)',
+                filter: 'blur(5px)',
                 animationDelay: '0.5s',
-              }} />
+              }}
+            />
           </>
         )}
 
         <button
-          onClick={handleClockAction}
+          onClick={handleManualClockAction}
           disabled={isDisabled}
-          className="relative flex flex-col items-center justify-center w-44 h-44 rounded-full transition-all duration-300"
+          className="relative flex flex-col items-center justify-center w-48 h-48 rounded-full transition-all duration-300 group"
           style={{
             background: isDisabled ? 'rgba(30, 41, 59, 0.8)' : buttonGradient,
             boxShadow: isDisabled ? 'none' : glowColor,
-            border: isDisabled ? '3px solid rgba(71, 85, 105, 0.3)' : '3px solid rgba(255,255,255,0.15)',
+            border: isDisabled ? '3px solid rgba(71, 85, 105, 0.3)' : '3px solid rgba(255, 255, 255, 0.2)',
             opacity: isDisabled ? 0.6 : 1,
             cursor: isDisabled ? 'not-allowed' : 'pointer',
-            transform: isDisabled ? 'scale(1)' : undefined,
           }}
-          onMouseEnter={(e) => { if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'; }}
-          onMouseLeave={(e) => { if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+          onMouseEnter={(e) => {
+            if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isDisabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+          }}
         >
-          {/* Inner decorative ring */}
-          <div className="absolute inset-2 rounded-full border-2 border-white/20 border-dashed"
-            style={{ animation: 'spin 20s linear infinite' }} />
-          
+          {/* Inner Spinning Ring */}
+          <div
+            className="absolute inset-2 rounded-full border-2 border-white/20 border-dashed"
+            style={{ animation: 'spin 25s linear infinite' }}
+          />
+
           {isLoading ? (
             <Loader2 className="w-12 h-12 text-white animate-spin mb-2" />
+          ) : isStartingShift ? (
+            <Play className="w-12 h-12 text-white mb-2 ml-1 transition-transform group-hover:scale-110" />
           ) : (
-            <Fingerprint className="w-12 h-12 text-white mb-2 transition-transform duration-300" />
+            <LogOut className="w-12 h-12 text-white mb-2 transition-transform group-hover:scale-110" />
           )}
-          
-          <span className="text-white font-bold tracking-wider uppercase text-sm">
-            {isLoading ? 'Locating...' : actionText}
+
+          <span className="text-white font-bold tracking-wider uppercase text-sm font-sans">
+            {isLoading ? 'Processing...' : isStartingShift ? 'Start Shift' : 'End Shift'}
           </span>
         </button>
       </div>
 
-      {lastLog && (
-        <p className="mt-8 text-sm text-slate-400">
-          Last recorded: {lastLog.type === 'check_in' ? 'Clocked In' : 'Clocked Out'} at{' '}
-          <strong className="text-white">
-            {new Date(lastLog.timestamp).toLocaleTimeString('en-IN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </strong>
-        </p>
-      )}
+      {/* Geofencing Help note */}
+      <p className="mt-6 text-xs text-slate-400 text-center max-w-xs leading-relaxed">
+        {isStartingShift ? (
+          'Click Start Shift when you arrive. Breaks are managed automatically based on your location range.'
+        ) : (
+          <span className="flex items-center justify-center gap-1 text-slate-300">
+            <Fingerprint className="w-3.5 h-3.5 text-cyan-400" />
+            Automatic geofencing active: breaks are auto-logged when outside range.
+          </span>
+        )}
+      </p>
     </div>
   )
 }

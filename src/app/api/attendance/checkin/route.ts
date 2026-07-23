@@ -10,8 +10,8 @@ const checkinSchema = z.object({
 })
 
 // Security constants
-const MAX_GPS_ACCURACY_METERS = 100 // Reject if GPS accuracy is worse than 100m
-const MIN_SECONDS_BETWEEN_ACTIONS = 60 // Rate limit: 1 action per 60 seconds
+const MAX_GPS_ACCURACY_METERS = 3000 // Relaxed for desktop/laptop Wi-Fi location services
+const MIN_SECONDS_BETWEEN_ACTIONS = 3 // 3s rate limit to prevent double tap while allowing smooth state transitions
 
 export async function POST(req: Request) {
   try {
@@ -53,10 +53,6 @@ export async function POST(req: Request) {
 
     if (employee.status === 'inactive') {
       return NextResponse.json({ error: 'Your account is deactivated. Contact your administrator.' }, { status: 403 })
-    }
-
-    if (employee.role !== 'staff') {
-      return NextResponse.json({ error: 'Only staff can check in' }, { status: 403 })
     }
 
     if (!employee.outlet_id || !employee.outlets) {
