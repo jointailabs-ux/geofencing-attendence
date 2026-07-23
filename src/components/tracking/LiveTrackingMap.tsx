@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { RefreshCw, Battery, Wifi, MapPin, Clock, Signal } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -64,15 +65,38 @@ interface EmployeePing {
   } | null
 }
 
-// Component to fit map bounds to all markers
-function FitBounds({ positions }: { positions: [number, number][] }) {
+// Component to refocus/pan map based on selected outlet or fit all markers
+function MapRefocuser({
+  selectedOutlet,
+  outlets,
+  data,
+}: {
+  selectedOutlet: string
+  outlets: Outlet[]
+  data: EmployeePing[]
+}) {
   const map = useMap()
+
   useEffect(() => {
-    if (positions.length > 0) {
-      const bounds = L.latLngBounds(positions.map(([lat, lng]) => [lat, lng]))
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
+    if (selectedOutlet === 'all') {
+      const positions: [number, number][] = []
+      data.forEach(d => {
+        if (d.lastPing) positions.push([d.lastPing.latitude, d.lastPing.longitude])
+      })
+      outlets.forEach(o => positions.push([o.latitude, o.longitude]))
+
+      if (positions.length > 0) {
+        const bounds = L.latLngBounds(positions.map(([lat, lng]) => [lat, lng]))
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
+      }
+    } else {
+      const outlet = outlets.find(o => o.id === selectedOutlet)
+      if (outlet) {
+        map.setView([outlet.latitude, outlet.longitude], 16, { animate: true })
+      }
     }
-  }, [positions, map])
+  }, [selectedOutlet, outlets, data, map])
+
   return null
 }
 
@@ -211,7 +235,7 @@ export function LiveTrackingMap({ initialData, outlets, orgId }: LiveTrackingMap
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
-          <FitBounds positions={positions} />
+          <MapRefocuser selectedOutlet={selectedOutlet} outlets={outlets} data={data} />
 
           {/* Outlet geofence circles */}
           {outlets.map(o => (
@@ -227,6 +251,13 @@ export function LiveTrackingMap({ initialData, outlets, orgId }: LiveTrackingMap
                 dashArray: '8 4',
               }}
             >
+              <Tooltip
+                permanent
+                direction="bottom"
+                className="!bg-violet-950/90 !text-violet-200 !border-violet-500/20 !text-[9px] !font-bold !px-1.5 !py-0.5 !rounded !shadow-md !backdrop-blur-sm"
+              >
+                📍 {o.name}
+              </Tooltip>
               <Popup>
                 <div className="text-sm font-semibold">{o.name}</div>
                 <div className="text-xs text-gray-500">Radius: {o.radius_meters}m</div>
@@ -250,6 +281,21 @@ export function LiveTrackingMap({ initialData, outlets, orgId }: LiveTrackingMap
                 position={[d.lastPing.latitude, d.lastPing.longitude]}
                 icon={icon}
               >
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -32]}
+                  className={cn(
+                    "!text-[10px] !font-bold !px-2 !py-0.5 !rounded-lg !shadow-lg !backdrop-blur-sm",
+                    isOffline
+                      ? "!bg-slate-900/95 !text-slate-400 !border-slate-800"
+                      : d.lastPing.is_inside_geofence
+                        ? "!bg-emerald-950/95 !text-emerald-400 !border-emerald-500/20"
+                        : "!bg-red-950/95 !text-red-400 !border-red-500/20"
+                  )}
+                >
+                  {d.employee.full_name}
+                </Tooltip>
                 <Popup>
                   <div className="min-w-[200px]">
                     <p className="text-sm font-bold text-gray-900">{d.employee.full_name}</p>
