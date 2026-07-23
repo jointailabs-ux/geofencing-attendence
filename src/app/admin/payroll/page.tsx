@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { getAllPayrollRuns } from '@/app/actions/payroll'
+import { getAllPayrollRuns, generateDraftPayroll } from '@/app/actions/payroll'
 import { AdminPayrollRun } from '@/components/payroll/AdminPayrollRun'
 import type { Metadata } from 'next'
 
@@ -20,7 +20,22 @@ export default async function AdminPayrollPage() {
 
   if (!employee) redirect('/login')
 
-  const runs = await getAllPayrollRuns(employee.org_id)
+  const now = new Date()
+  const currentMonth = now.getMonth() + 1
+  const currentYear = now.getFullYear()
+
+  let runs = await getAllPayrollRuns(employee.org_id)
+
+  // Ensure current month payroll draft exists so page opens with all staff salaries populated
+  const currentRun = runs.find((r) => r.month === currentMonth && r.year === currentYear)
+  if (!currentRun) {
+    try {
+      await generateDraftPayroll(employee.org_id, currentMonth, currentYear, 20)
+      runs = await getAllPayrollRuns(employee.org_id)
+    } catch (e) {
+      console.warn('Could not auto-generate current month draft:', e)
+    }
+  }
 
   return (
     <div className="animate-fade-in space-y-8">

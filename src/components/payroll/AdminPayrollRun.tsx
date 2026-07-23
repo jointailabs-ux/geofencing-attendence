@@ -92,13 +92,49 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initial
     }
   }
 
-  // Initial load effect
+  // Auto load or generate payroll details whenever genMonth or genYear changes
   useEffect(() => {
-    if (selectedRunId && !runDetails && !isLoadingDetails) {
-      loadRunDetails(selectedRunId)
+    let isMounted = true
+    const autoLoadOrGenerate = async () => {
+      const existing = runs.find((r) => r.month === genMonth && r.year === genYear)
+      if (existing) {
+        setIsLoadingDetails(true)
+        try {
+          const details = await getPayrollRunDetails(existing.id)
+          if (isMounted) {
+            setSelectedRunId(existing.id)
+            setRunDetails(details)
+          }
+        } catch {
+          if (isMounted) toast.error('Failed to load payroll details')
+        } finally {
+          if (isMounted) setIsLoadingDetails(false)
+        }
+      } else {
+        // Auto generate draft if none exists for this month/year
+        setIsGenerating(true)
+        try {
+          const res = await generateDraftPayroll(orgId, genMonth, genYear, mediclaimPct)
+          if (res?.runId && isMounted) {
+            setSelectedRunId(res.runId)
+            const details = await getPayrollRunDetails(res.runId)
+            if (isMounted) setRunDetails(details)
+          }
+        } catch {
+          if (isMounted) console.warn('Could not auto-generate draft for selected month')
+        } finally {
+          if (isMounted) setIsGenerating(false)
+        }
+      }
+    }
+
+    autoLoadOrGenerate()
+
+    return () => {
+      isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRunId])
+  }, [genMonth, genYear])
 
   const handleGenerate = async () => {
     setIsGenerating(true)
