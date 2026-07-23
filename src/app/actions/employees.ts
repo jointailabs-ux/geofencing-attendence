@@ -202,6 +202,8 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
   if (error) return { error: 'Failed to update employee. Please try again.' }
 
   revalidatePath('/admin/employees')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/manager/dashboard')
   redirect('/admin/employees')
 }
 
@@ -238,6 +240,52 @@ export async function deactivateEmployee(employeeId: string) {
   return { success: true }
 }
 
+// ─── Delete employee ─────────────────────────────────────────────────────────────
+export async function deleteEmployee(employeeId: string) {
+  const caller = await getCallerEmployee()
+  if (!caller) return { error: 'Unauthorized' }
+  if (caller.role !== 'super_admin') return { error: 'Only Super Admins can delete staff' }
+
+  const serviceClient = createServiceClient()
+
+  // Find auth_user_id
+  const { data: emp } = await serviceClient
+    .from('employees')
+    .select('auth_user_id')
+    .eq('id', employeeId)
+    .eq('org_id', caller.org_id)
+    .single()
+
+  // Try deleting employee record
+  const { error } = await serviceClient
+    .from('employees')
+    .delete()
+    .eq('id', employeeId)
+    .eq('org_id', caller.org_id)
+
+  if (error) {
+    // Fallback if foreign key references exist (e.g. attendance logs): soft-delete
+    await serviceClient
+      .from('employees')
+      .update({ status: 'inactive', outlet_id: null })
+      .eq('id', employeeId)
+      .eq('org_id', caller.org_id)
+  }
+
+  if (emp?.auth_user_id) {
+    try {
+      await serviceClient.auth.admin.deleteUser(emp.auth_user_id)
+    } catch (e) {
+      console.warn('Could not delete auth user', e)
+    }
+  }
+
+  revalidatePath('/admin/employees')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/manager/dashboard')
+  return { success: true }
+}
+
 // ─── Reactivate employee ────────────────────────────────────────────────────────
 export async function reactivateEmployee(employeeId: string) {
   const caller = await getCallerEmployee()
@@ -268,5 +316,7 @@ export async function reactivateEmployee(employeeId: string) {
   if (error) return { error: 'Failed to reactivate employee.' }
 
   revalidatePath('/admin/employees')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/manager/dashboard')
   return { success: true }
 }
