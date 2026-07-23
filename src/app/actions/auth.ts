@@ -11,34 +11,42 @@ export async function login(formData: FormData) {
   const supabase = await createClient()
   const serviceClient = createServiceClient()
 
-  const pin = formData.get('pin') as string
+  const input = (formData.get('pin') || formData.get('email') || '').toString().trim()
 
-  if (!pin) {
-    return { error: 'PIN is required.' }
+  if (!input) {
+    return { error: 'PIN or Email is required.' }
   }
 
-  // 1. Look up the employee by PIN using the service client
-  const { data: employee } = await serviceClient
-    .from('employees')
-    .select('email, role, status')
-    .eq('pin', pin)
-    .single()
+  // 1. Look up employee by PIN, Email, or Employee Code using service client
+  const [{ data: byPin }, { data: byEmail }, { data: byCode }] = await Promise.all([
+    serviceClient.from('employees').select('email, role, status, pin').eq('pin', input).maybeSingle(),
+    serviceClient.from('employees').select('email, role, status, pin').eq('email', input.toLowerCase()).maybeSingle(),
+    serviceClient.from('employees').select('email, role, status, pin').eq('employee_code', input).maybeSingle(),
+  ])
+
+  const employee = byPin || byEmail || byCode
 
   if (!employee) {
-    return { error: 'Invalid PIN.' }
+    return { error: 'Invalid PIN or credentials.' }
   }
 
   if (employee.status === 'inactive') {
     return { error: 'Your account has been deactivated. Contact your administrator.' }
   }
 
+  // Password to attempt is either employee.pin or the entered input
+  const passwordToUse = employee.pin || input
+
   // 2. Authenticate with Supabase Auth using the email and PIN as password
-  const { error } = await supabase.auth.signInWithPassword({ email: employee.email, password: pin })
+  const { error } = await supabase.auth.signInWithPassword({
+    email: employee.email,
+    password: passwordToUse,
+  })
 
   if (error) {
     let message = 'An unexpected error occurred. Please try again.'
     if (error.message.includes('Invalid login credentials')) {
-      message = 'Invalid PIN.'
+      message = 'Invalid PIN or password.'
     } else if (error.message.includes('Email not confirmed')) {
       message = 'Your account has not been activated yet. Contact your administrator.'
     } else if (error.message.includes('Too many requests')) {
