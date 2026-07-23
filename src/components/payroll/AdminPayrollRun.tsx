@@ -7,6 +7,7 @@ import {
   getPayrollRunDetails,
   updateLineItemAdjustments,
   finalizePayrollRun,
+  sendIndividualPayslip,
 } from '@/app/actions/payroll'
 import {
   Loader2,
@@ -53,7 +54,21 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initial
   )
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
-  // Edit Line Item State
+  const [sendingId, setSendingId] = useState<string | null>(null)
+
+  const handleSendPayslip = async (li: PayrollLineItem) => {
+    setSendingId(li.id)
+    try {
+      const res = await sendIndividualPayslip(li.id)
+      toast.success(`Payslip for ${res.employeeName || li.employee?.full_name} sent directly to their staff profile!`)
+      if (selectedRunId) loadRunDetails(selectedRunId)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to send payslip')
+    } finally {
+      setSendingId(null)
+    }
+  }
+
   const [editingItem, setEditingItem] = useState<PayrollLineItem | null>(null)
   const [editForm, setEditForm] = useState({
     manual_adjustments: 0,
@@ -524,9 +539,13 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initial
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                             <CheckCircle2 className="w-3 h-3" /> DISBURSED
                           </span>
+                        ) : (li as unknown as { is_sent?: boolean })?.is_sent || li.adjustment_note?.includes('Sent') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                            <Send className="w-3 h-3" /> SENT TO PROFILE
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                            <Clock className="w-3 h-3" /> PENDING
+                            <Clock className="w-3 h-3" /> DRAFT
                           </span>
                         )}
                       </td>
@@ -534,13 +553,28 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initial
                       {/* Action Buttons */}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Send / Download Payslip PDF */}
+                          {/* Send Payslip to Staff Profile Button */}
+                          <button
+                            onClick={() => handleSendPayslip(li)}
+                            disabled={sendingId === li.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 font-bold text-xs border border-emerald-500/30 transition-all shadow-md disabled:opacity-50"
+                            title="Send payslip directly to staff profile"
+                          >
+                            {sendingId === li.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                            Send to Staff
+                          </button>
+
+                          {/* Download Payslip PDF */}
                           <button
                             onClick={() => downloadSinglePDF(li)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-bold text-xs border border-cyan-500/20 transition-all"
-                            title="Download & Send PDF Payslip"
+                            title="Download PDF Payslip"
                           >
-                            <Download className="w-3.5 h-3.5" /> Payslip PDF
+                            <Download className="w-3.5 h-3.5" /> PDF
                           </button>
 
                           {/* Edit Adjustments */}

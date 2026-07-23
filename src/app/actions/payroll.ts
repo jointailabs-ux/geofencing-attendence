@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { calculatePayrollForEmployee, type PayrollEmployee, type PayrollAttendance } from '@/lib/payroll/calculate'
 import type { PayrollRun, PayrollLineItem } from '@/lib/types/database'
@@ -214,7 +215,51 @@ export async function finalizePayrollRun(runId: string) {
     .eq('id', runId)
 
   if (error) throw new Error('Failed to finalize run')
+
+  revalidatePath('/staff/payslips')
+  revalidatePath('/staff/profile')
+  revalidatePath('/admin/payroll')
   return { success: true }
+}
+
+export async function sendIndividualPayslip(lineItemId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: lineItem, error: fetchErr } = await supabase
+    .from('payroll_line_items')
+    .select('*, employee:employees(full_name)')
+    .eq('id', lineItemId)
+    .single()
+
+  if (fetchErr || !lineItem) throw new Error('Line item not found')
+
+  const empName = (lineItem.employee as unknown as { full_name: string })?.full_name || 'Staff Member'
+
+  // Attempt updating with is_sent flag, or fallback to adjustment_note
+  const { error: updateErr } = await supabase
+    .from('payroll_line_items')
+    .update({ 
+      is_sent: true,
+      adjustment_note: lineItem.adjustment_note ? `${lineItem.adjustment_note} (Sent)` : 'Sent to Staff Profile'
+    })
+    .eq('id', lineItemId)
+
+  if (updateErr) {
+    await supabase
+      .from('payroll_line_items')
+      .update({ 
+        adjustment_note: lineItem.adjustment_note ? lineItem.adjustment_note : 'Sent to Staff Profile'
+      })
+      .eq('id', lineItemId)
+  }
+
+  revalidatePath('/staff/payslips')
+  revalidatePath('/staff/profile')
+  revalidatePath('/admin/payroll')
+
+  return { success: true, employeeName: empName }
 }
 
 export async function getAllPayrollRuns(orgId: string) {

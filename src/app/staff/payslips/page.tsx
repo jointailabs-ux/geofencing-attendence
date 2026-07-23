@@ -26,7 +26,10 @@ export default async function StaffPayslipsPage() {
     .order('created_at', { ascending: false })
 
   const finalizedItems = (lineItems || []).filter(
-    (li) => (li.payroll_run as unknown as { status: string })?.status === 'finalized'
+    (li) =>
+      (li.payroll_run as unknown as { status: string })?.status === 'finalized' ||
+      Boolean((li as unknown as { is_sent: boolean })?.is_sent) ||
+      Boolean(li.adjustment_note && li.adjustment_note.includes('Sent'))
   )
 
   const monthNames = [
