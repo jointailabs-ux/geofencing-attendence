@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Building2, Users, ClipboardList, CalendarOff } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, ClipboardList, CalendarOff, Banknote } from 'lucide-react'
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dash', icon: LayoutDashboard, color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
@@ -11,6 +11,7 @@ const adminNavItems = [
   { href: '/admin/employees', label: 'Staff', icon: Users, color: '#10B981', bg: 'rgba(16,185,129,0.12)' },
   { href: '/admin/attendance', label: 'Logs', icon: ClipboardList, color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
   { href: '/admin/leave', label: 'Leave', icon: CalendarOff, color: '#F43F5E', bg: 'rgba(244,63,94,0.12)' },
+  { href: '/admin/payroll', label: 'Payroll', icon: Banknote, color: '#06B6D4', bg: 'rgba(6,182,212,0.12)' },
 ]
 
 export function AdminBottomNav() {
