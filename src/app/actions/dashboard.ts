@@ -1,14 +1,15 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getISTDate, getISTStartOfDay } from '@/lib/utils'
 
 export async function getAdminDashboardStats(orgId: string) {
   const supabase = await createClient()
 
-  const todayDateStr = new Date().toISOString().split('T')[0]
-  const startOfDay = new Date(todayDateStr).toISOString()
-  const currMonth = new Date().getMonth() + 1
-  const currYear = new Date().getFullYear()
+  const startOfDay = getISTStartOfDay().toISOString()
+  const istDate = getISTDate()
+  const currMonth = istDate.getMonth() + 1
+  const currYear = istDate.getFullYear()
 
   // Run independent queries in parallel to drastically improve page loading speed
   const [
@@ -285,8 +286,7 @@ export async function getAttendanceTrend(orgId: string) {
 export async function getManagerDashboardStats(outletId: string) {
   const supabase = await createClient()
 
-  const todayDateStr = new Date().toISOString().split('T')[0]
-  const startOfDay = new Date(todayDateStr).toISOString()
+  const startOfDay = getISTStartOfDay().toISOString()
 
   // Run manager counts and logs in parallel
   const [
@@ -420,11 +420,17 @@ export async function getManagerDashboardStats(outletId: string) {
 export async function getStaffDashboardStats(employeeId: string) {
   const supabase = await createClient()
 
-  const currMonth = new Date().getMonth() + 1
-  const currYear = new Date().getFullYear()
+  const istDate = getISTDate()
+  const currMonth = istDate.getMonth() + 1
+  const currYear = istDate.getFullYear()
 
-  const startOfMonth = new Date(currYear, currMonth - 1, 1).toISOString()
-  const endOfMonth = new Date(currYear, currMonth, 0, 23, 59, 59).toISOString()
+  const startOfMonthRaw = new Date(Date.UTC(currYear, currMonth - 1, 1, 0, 0, 0))
+  startOfMonthRaw.setMinutes(startOfMonthRaw.getMinutes() - 330)
+  const startOfMonth = startOfMonthRaw.toISOString()
+
+  const endOfMonthRaw = new Date(Date.UTC(currYear, currMonth, 0, 23, 59, 59, 999))
+  endOfMonthRaw.setMinutes(endOfMonthRaw.getMinutes() - 330)
+  const endOfMonth = endOfMonthRaw.toISOString()
 
   // Run all staff dashboard queries in parallel
   const [

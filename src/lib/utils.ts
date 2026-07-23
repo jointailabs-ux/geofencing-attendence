@@ -24,3 +24,47 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 
   return R * c
 }
+
+/**
+ * Returns YYYY-MM-DD string in Asia/Kolkata (IST) timezone
+ */
+export function getISTDateString(date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(date)
+}
+
+/**
+ * Returns a JS Date object converted to Asia/Kolkata timezone
+ */
+export function getISTDate(date = new Date()): Date {
+  const tzString = date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  return new Date(tzString)
+}
+
+/**
+ * Returns the start of the day in IST as a UTC Date object
+ */
+export function getISTStartOfDay(date = new Date()): Date {
+  const dateStr = getISTDateString(date)
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+  d.setMinutes(d.getMinutes() - 330)
+  return d
+}
+
+/**
+ * Returns the end of the day in IST as a UTC Date object
+ */
+export function getISTEndOfDay(date = new Date()): Date {
+  const dateStr = getISTDateString(date)
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+  d.setMinutes(d.getMinutes() - 330)
+  return d
+}
+

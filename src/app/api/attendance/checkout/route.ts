@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { calculateDistance } from '@/lib/utils'
+import { calculateDistance, getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
 import { z } from 'zod'
 
 const checkoutSchema = z.object({
@@ -69,13 +69,15 @@ export async function POST(req: Request) {
     }
 
     // 5. Verify check-in exists and enforce rate limiting + minimum session
-    const todayStr = new Date().toISOString().split('T')[0]
+    const start = getISTStartOfDay().toISOString()
+    const end = getISTEndOfDay().toISOString()
     
     const { data: lastLogs, error: logsError } = await supabase
       .from('attendance_logs')
       .select('type, timestamp')
       .eq('employee_id', employee.id)
-      .gte('timestamp', `${todayStr}T00:00:00.000Z`)
+      .gte('timestamp', start)
+      .lte('timestamp', end)
       .order('timestamp', { ascending: false })
       .limit(1)
 

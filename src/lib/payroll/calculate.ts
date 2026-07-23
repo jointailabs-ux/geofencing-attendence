@@ -49,12 +49,19 @@ export function calculatePayrollForEmployee(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   )
 
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
   for (const log of sortedLogs) {
     const date = new Date(log.timestamp)
-    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-    const dateString = localDate.toISOString().split('T')[0]
+    const dateString = formatter.format(date)
+    const [logYear, logMonth] = dateString.split('-').map(Number)
     
-    if (date.getMonth() + 1 !== month || date.getFullYear() !== year) continue
+    if (logMonth !== month || logYear !== year) continue
 
     if (log.type === 'check_in') {
       daysPresentSet.add(dateString)

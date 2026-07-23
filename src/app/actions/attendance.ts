@@ -2,17 +2,20 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { AttendanceLog } from '@/lib/types/database'
+import { getISTDateString, getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
 
 export async function getTodayAttendanceStatus(employeeId: string) {
   const supabase = await createClient()
   
-  const todayStr = new Date().toISOString().split('T')[0]
+  const start = getISTStartOfDay().toISOString()
+  const end = getISTEndOfDay().toISOString()
   
   const { data: logs, error } = await supabase
     .from('attendance_logs')
     .select('*')
     .eq('employee_id', employeeId)
-    .gte('timestamp', `${todayStr}T00:00:00.000Z`)
+    .gte('timestamp', start)
+    .lte('timestamp', end)
     .order('timestamp', { ascending: false })
 
   if (error) {
@@ -45,13 +48,15 @@ export async function getEmployeeAttendanceHistory(employeeId: string, limit: nu
 export async function getOutletAttendanceToday(outletId: string) {
   const supabase = await createClient()
   
-  const todayStr = new Date().toISOString().split('T')[0]
+  const start = getISTStartOfDay().toISOString()
+  const end = getISTEndOfDay().toISOString()
   
   const { data: logs, error } = await supabase
     .from('attendance_logs')
     .select('*, employee:employees!attendance_logs_employee_id_fkey(full_name, role)')
     .eq('outlet_id', outletId)
-    .gte('timestamp', `${todayStr}T00:00:00.000Z`)
+    .gte('timestamp', start)
+    .lte('timestamp', end)
     .order('timestamp', { ascending: false })
 
   if (error) {
@@ -65,8 +70,9 @@ export async function getOutletAttendanceToday(outletId: string) {
 export async function getOrgAttendanceToday(orgId: string) {
   const supabase = await createClient()
   
-  const todayStr = new Date().toISOString().split('T')[0]
-  
+  const start = getISTStartOfDay().toISOString()
+  const end = getISTEndOfDay().toISOString()
+
   // First get outlets to get their IDs
   const { data: outlets } = await supabase
     .from('outlets')
@@ -80,7 +86,8 @@ export async function getOrgAttendanceToday(orgId: string) {
     .from('attendance_logs')
     .select('*, employee:employees!attendance_logs_employee_id_fkey(full_name, role), outlet:outlets(name)')
     .in('outlet_id', outletIds)
-    .gte('timestamp', `${todayStr}T00:00:00.000Z`)
+    .gte('timestamp', start)
+    .lte('timestamp', end)
     .order('timestamp', { ascending: false })
 
   if (error) {
@@ -217,7 +224,7 @@ export async function getDailyAttendanceSummary(orgId: string, dateStr: string):
     }
 
     // If they checked in but haven't checked out yet, calculate up to CURRENT time (if the date is today)
-    if (currentCheckIn && dateStr === new Date().toISOString().split('T')[0]) {
+    if (currentCheckIn && dateStr === getISTDateString()) {
       totalMs += new Date().getTime() - currentCheckIn.getTime()
     }
 

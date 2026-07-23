@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { calculateDistance } from '@/lib/utils'
+import { calculateDistance, getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
 
 // OwnTracks sends: { _type: "location", tid, tst, lat, lon, acc, batt, vel, alt, conn }
 interface OwnTracksPayload {
@@ -123,14 +123,16 @@ export async function POST(req: Request) {
 
     // 7. Auto break/resume detection
     if (employee.outlet_id) {
-      const todayStr = new Date().toISOString().split('T')[0]
+      const start = getISTStartOfDay().toISOString()
+      const end = getISTEndOfDay().toISOString()
 
       // Get today's last attendance log
       const { data: lastLogs } = await supabase
         .from('attendance_logs')
         .select('id, type, timestamp')
         .eq('employee_id', device.employee_id)
-        .gte('timestamp', `${todayStr}T00:00:00.000Z`)
+        .gte('timestamp', start)
+        .lte('timestamp', end)
         .order('timestamp', { ascending: false })
         .limit(1)
 

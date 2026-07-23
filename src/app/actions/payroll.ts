@@ -76,8 +76,9 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
 
   // Generate line items in bulk to fix N+1 query performance bottleneck
   const empIds = employees.map(emp => emp.id)
-  const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0]
-  const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
   // Query all attendance logs and leave requests for all employees in parallel
   const [
