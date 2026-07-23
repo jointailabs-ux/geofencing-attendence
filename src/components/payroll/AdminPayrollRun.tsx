@@ -2,26 +2,45 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { generateDraftPayroll, getPayrollRunDetails, updateLineItemAdjustments, finalizePayrollRun } from '@/app/actions/payroll'
-import { Loader2, Plus, Edit3, CheckCircle2, FileText, FileSpreadsheet } from 'lucide-react'
+import {
+  generateDraftPayroll,
+  getPayrollRunDetails,
+  updateLineItemAdjustments,
+  finalizePayrollRun,
+} from '@/app/actions/payroll'
+import {
+  Loader2,
+  Plus,
+  FileText,
+  FileSpreadsheet,
+  IndianRupee,
+  ShieldCheck,
+  Percent,
+  Send,
+  Calendar,
+  HelpCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import * as Dialog from '@radix-ui/react-dialog'
-import { StatusBadge } from '@/components/ui/StatusBadge'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import type { PayrollRun, PayrollLineItem } from '@/lib/types/database'
+import { getOutletColor } from '@/lib/outletColors'
 
-export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string, initialRuns: PayrollRun[] }) {
+export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initialRuns: PayrollRun[] }) {
   const router = useRouter()
   const [runs] = useState(initialRuns)
   const [isGenerating, setIsGenerating] = useState(false)
   const [genMonth, setGenMonth] = useState(new Date().getMonth() + 1)
   const [genYear, setGenYear] = useState(new Date().getFullYear())
+  const [mediclaimPct, setMediclaimPct] = useState<number>(20) // Default 20% mediclaim deduction
 
   // Details Modal State
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  const [runDetails, setRunDetails] = useState<(PayrollRun & { payroll_line_items: PayrollLineItem[] }) | null>(null)
+  const [runDetails, setRunDetails] = useState<(PayrollRun & { payroll_line_items: PayrollLineItem[] }) | null>(
+    null
+  )
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
   // Edit Line Item State
@@ -30,16 +49,15 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string, initial
     manual_adjustments: 0,
     adjustment_note: '',
     deductions: 0,
-    deduction_note: ''
+    deduction_note: '',
   })
 
   const handleGenerate = async () => {
     setIsGenerating(true)
     try {
-      await generateDraftPayroll(orgId, genMonth, genYear)
-      toast.success('Payroll draft generated successfully')
+      await generateDraftPayroll(orgId, genMonth, genYear, mediclaimPct)
+      toast.success(`Payroll draft generated for Month ${genMonth}/${genYear} with ${mediclaimPct}% Mediclaim deduction`)
       router.refresh()
-      // Reload UI state locally for immediate feedback
       window.location.reload()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate payroll')
@@ -67,9 +85,9 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string, initial
     try {
       await updateLineItemAdjustments(editingItem.id, {
         base_pay: editingItem.base_pay,
-        ...editForm
+        ...editForm,
       })
-      toast.success('Adjustments saved')
+      toast.success('Salary adjustments saved successfully')
       setEditingItem(null)
       loadDetails(runDetails.id)
     } catch (e) {
@@ -78,10 +96,11 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string, initial
   }
 
   const handleFinalize = async () => {
-    if (!runDetails || !confirm('Are you sure? This will lock the payroll and cannot be undone.')) return
+    if (!runDetails || !confirm('Are you sure you want to release money for this month? This will lock payroll and mark salaries as disbursed to all employees.'))
+      return
     try {
       await finalizePayrollRun(runDetails.id)
-      toast.success('Payroll Finalized')
+      toast.success('Payroll released and money disbursed successfully!')
       window.location.reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to finalize payroll')
@@ -90,300 +109,591 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string, initial
 
   const exportToExcel = () => {
     if (!runDetails) return
-    
-    const data = runDetails.payroll_line_items.map(li => ({
-      'Employee Name': li.employee?.full_name,
-      'Role': li.employee?.role,
-      'Outlet': li.employee?.outlet?.name,
-      'Salary Type': li.employee?.salary_type,
-      'Days Present': li.days_present,
-      'Paid Leave': li.days_leave_paid,
-      'Unpaid Leave': li.days_leave_unpaid,
-      'Absences': li.days_absent_unexcused,
-      'Base Pay (₹)': li.base_pay,
-      'Adjustments (₹)': li.manual_adjustments,
-      'Adjustment Note': li.adjustment_note || '',
-      'Deductions (₹)': li.deductions,
-      'Deduction Note': li.deduction_note || '',
-      'Net Pay (₹)': li.net_pay
-    }))
+
+    const data = runDetails.payroll_line_items.map((li) => {
+      const basePay = Number(li.base_pay) || 0
+      const deductions = Number(li.deductions) || 0
+      const manual = Number(li.manual_adjustments) || 0
+      const netPay = Number(li.net_pay) || 0
+
+      return {
+        'Employee Name': li.employee?.full_name,
+        Role: li.employee?.role,
+        Outlet: li.employee?.outlet?.name || 'Unassigned',
+        'Salary Type': li.employee?.salary_type,
+        'Days Present': li.days_present,
+        'Paid Leave': li.days_leave_paid,
+        'Unpaid Leave': li.days_leave_unpaid,
+        Absences: li.days_absent_unexcused,
+        'Base Gross Pay (₹)': basePay,
+        'Mediclaim & Deductions (₹)': deductions,
+        'Deduction Note': li.deduction_note || '',
+        'Bonus/Adjustments (₹)': manual,
+        'Net In-Hand Pay (₹)': netPay,
+      }
+    })
 
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Payroll")
+    XLSX.utils.book_append_sheet(wb, ws, 'Payroll')
     XLSX.writeFile(wb, `Payroll_${runDetails.month}_${runDetails.year}.xlsx`)
   }
 
   const generatePDFs = () => {
     if (!runDetails) return
-    
-    // In a real app we might generate a zip. For now, we generate a single PDF with multiple pages, one per payslip.
+
     const doc = new jsPDF()
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ]
+
     runDetails.payroll_line_items.forEach((li, index) => {
       if (index > 0) doc.addPage()
-      
-      doc.setFontSize(20)
-      doc.text('PAYSLIP', 105, 20, { align: 'center' })
-      
+
+      const basePay = Number(li.base_pay) || 0
+      const deductions = Number(li.deductions) || 0
+      const netPay = Number(li.net_pay) || 0
+      const adjustments = Number(li.manual_adjustments) || 0
+
+      doc.setFontSize(22)
+      doc.setTextColor(16, 185, 129)
+      doc.text('GeoAttend Official Salary Slip', 105, 20, { align: 'center' })
+
+      doc.setFontSize(10)
+      doc.setTextColor(100, 116, 139)
+      doc.text(`Period: ${monthNames[runDetails.month - 1]} ${runDetails.year}`, 105, 27, { align: 'center' })
+
       doc.setFontSize(12)
-      doc.text(`Employee: ${li.employee?.full_name}`, 20, 40)
-      doc.text(`Role: ${li.employee?.role.toUpperCase()}`, 20, 48)
-      doc.text(`Outlet: ${li.employee?.outlet?.name}`, 20, 56)
-      
-      doc.text(`Period: ${monthNames[runDetails.month - 1]} ${runDetails.year}`, 140, 40)
-      doc.text(`Salary Type: ${li.employee?.salary_type.toUpperCase()}`, 140, 48)
+      doc.setTextColor(15, 23, 42)
+      doc.text(`Employee Name: ${li.employee?.full_name}`, 20, 42)
+      doc.text(`Role: ${li.employee?.role.toUpperCase()}`, 20, 50)
+      doc.text(`Outlet Location: ${li.employee?.outlet?.name || 'Main'}`, 20, 58)
+
+      doc.text(`Status: DISBURSED & RELEASED`, 130, 42)
+      doc.text(`Salary Scheme: ${li.employee?.salary_type.toUpperCase()}`, 130, 50)
 
       autoTable(doc, {
-        startY: 70,
-        head: [['Description', 'Days/Hours', 'Amount (₹)']],
+        startY: 68,
+        head: [['Earnings & Deductions Component', 'Details / Basis', 'Amount (INR)']],
         body: [
-          ['Base Pay (includes Present & Paid Leave)', `${li.days_present + li.days_leave_paid} Days`, li.base_pay],
-          ['Manual Adjustments (Bonus)', '-', li.manual_adjustments],
-          ['Deductions', '-', `-${li.deductions}`],
+          ['Gross Base Pay', `${li.days_present} Days Present + ${li.days_leave_paid} Paid Leave`, `₹ ${basePay.toFixed(2)}`],
+          [`Mediclaim / Health Deduction`, li.deduction_note || 'Standard Mediclaim', `- ₹ ${deductions.toFixed(2)}`],
+          ['Manual Bonus / Adjustments', li.adjustment_note || 'N/A', `+ ₹ ${adjustments.toFixed(2)}`],
         ],
-        foot: [['NET PAY', '', `₹ ${li.net_pay}`]],
+        foot: [['NET SALARY IN-HAND RELEASED', '', `₹ ${netPay.toFixed(2)}`]],
         theme: 'grid',
-        headStyles: { fillColor: [15, 23, 42] }
+        headStyles: { fillColor: [15, 23, 42] },
+        footStyles: { fillColor: [16, 185, 129] },
       })
     })
 
     doc.save(`Payslips_${runDetails.month}_${runDetails.year}.pdf`)
   }
 
+  // Calculate live preview totals
+  const totalBasePaySum = runDetails?.payroll_line_items.reduce((acc, curr) => acc + Number(curr.base_pay), 0) || 0
+  const totalDeductionsSum = runDetails?.payroll_line_items.reduce((acc, curr) => acc + Number(curr.deductions), 0) || 0
+  const totalNetPaySum = runDetails?.payroll_line_items.reduce((acc, curr) => acc + Number(curr.net_pay), 0) || 0
+
   return (
-    <div className="space-y-6">
-      {/* Generator Card */}
-      <div className="geo-card !p-5 flex flex-col md:flex-row gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-slate-400 mb-1.5">Select Month</label>
-          <input 
-            type="month" 
-            value={`${genYear}-${genMonth.toString().padStart(2, '0')}`}
-            onChange={(e) => {
-              const [y, m] = e.target.value.split('-')
-              setGenYear(parseInt(y))
-              setGenMonth(parseInt(m))
-            }}
-            className="w-full bg-[#0F172A] border border-[#1E293B] rounded-xl px-4 py-2.5 text-white focus:border-accent text-sm [color-scheme:dark]"
-          />
-        </div>
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="bg-accent hover:bg-accent-hover text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2"
-        >
-          {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-          Generate Draft
-        </button>
-      </div>
+    <div className="space-y-8">
+      {/* Top Banner: Mediclaim Configurator & Run Generator */}
+      <div
+        className="rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl"
+        style={{
+          background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(16,185,129,0.05), rgba(10,15,30,0.95))',
+          border: '1px solid rgba(6,182,212,0.2)',
+        }}
+      >
+        <div className="relative z-10 space-y-6">
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 mb-2">
+              <Percent className="w-3.5 h-3.5" /> Mediclaim & Payroll Configurator
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Monthly Payroll & Salary Release</h2>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl">
+              Configure Mediclaim deduction percentages (e.g. 20% cut from ₹10,000 salary = ₹2,000 Mediclaim, leaving ₹8,000 Net In-Hand), generate monthly payroll drafts, and release money to employees.
+            </p>
+          </div>
 
-      {/* Runs List */}
-      <div className="geo-card !p-0 overflow-hidden">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="bg-[#0F172A] text-xs uppercase text-slate-500 font-semibold border-b border-[#1E293B]">
-            <tr>
-              <th className="px-6 py-4">Period</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Generated At</th>
-              <th className="px-6 py-4 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1E293B]">
-            {runs.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
-                  No payroll runs generated yet.
-                </td>
-              </tr>
-            )}
-            {runs.map((r) => (
-              <tr key={r.id} className="hover:bg-[#1E293B]/30 transition-colors">
-                <td className="px-6 py-4 font-medium text-white">
-                  {new Date(r.year, r.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                </td>
-                <td className="px-6 py-4">
-                  <StatusBadge 
-                    variant={r.status === 'finalized' ? 'active' : 'pending'} 
-                    label={r.status.toUpperCase()} 
-                  />
-                </td>
-                <td className="px-6 py-4 text-slate-400">
-                  {new Date(r.generated_at).toLocaleDateString()}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <button
-                    onClick={() => loadDetails(r.id)}
-                    className="text-accent hover:text-accent-hover font-medium px-3 py-1 bg-accent/10 rounded-lg transition-colors"
-                  >
-                    View Details
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          {/* Form Controls Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end bg-white/[0.02] p-4 sm:p-5 rounded-2xl border border-white/5">
+            {/* Month Select */}
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Payroll Month
+              </label>
+              <select
+                value={genMonth}
+                onChange={(e) => setGenMonth(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                {[
+                  'January',
+                  'February',
+                  'March',
+                  'April',
+                  'May',
+                  'June',
+                  'July',
+                  'August',
+                  'September',
+                  'October',
+                  'November',
+                  'December',
+                ].map((m, idx) => (
+                  <option key={m} value={idx + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      {/* Details Dialog */}
-      <Dialog.Root open={!!selectedRunId} onOpenChange={(open) => !open && setSelectedRunId(null)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-[#0F172A]/80 backdrop-blur-sm z-50 animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-6xl h-[90vh] flex flex-col bg-[#0F172A] border border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-            
-            {isLoadingDetails ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-accent" />
+            {/* Year Select */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Year</label>
+              <select
+                value={genYear}
+                onChange={(e) => setGenYear(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                {[2025, 2026, 2027].map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mediclaim Deduction % Config */}
+            <div className="sm:col-span-4">
+              <label className="block text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Percent className="w-3.5 h-3.5" /> Mediclaim Deduction (%)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={mediclaimPct}
+                  onChange={(e) => setMediclaimPct(Math.max(0, Math.min(50, Number(e.target.value))))}
+                  className="w-full bg-slate-900 border border-cyan-500/40 rounded-xl px-3.5 py-2 text-sm text-white font-mono font-bold focus:outline-none focus:border-cyan-400"
+                />
+                <div className="flex gap-1 shrink-0">
+                  {[10, 15, 20].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setMediclaimPct(pct)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                        mediclaimPct === pct
+                          ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                          : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : runDetails ? (
-              <>
-                {/* Header */}
-                <div className="p-6 border-b border-[#1E293B] flex justify-between items-center bg-[#0F172A] shrink-0">
-                  <div>
-                    <h2 className="text-xl font-bold text-white mb-1">
-                      Payroll: {new Date(runDetails.year, runDetails.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                    </h2>
-                    <div className="flex gap-2">
-                       <StatusBadge variant={runDetails.status === 'finalized' ? 'active' : 'pending'} label={runDetails.status.toUpperCase()} />
-                       <span className="text-sm text-slate-400 mt-0.5">
-                         Total Net Pay: <strong className="text-white">₹{runDetails.payroll_line_items.reduce((acc, curr) => acc + Number(curr.net_pay), 0).toFixed(2)}</strong>
-                       </span>
+            </div>
+
+            {/* Generate Action Button */}
+            <div className="sm:col-span-3">
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-slate-950 bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 transition-all shadow-lg disabled:opacity-50"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Generate Draft ({mediclaimPct}%)
+              </button>
+            </div>
+          </div>
+
+          {/* Example Calculation Box */}
+          <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-200 flex items-center gap-3">
+            <HelpCircle className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div>
+              <strong className="text-white">Example Calculation:</strong> For a staff member with ₹10,000 Base Salary at{' '}
+              <span className="underline font-bold">{mediclaimPct}% Mediclaim</span> cut, ₹
+              {((10000 * mediclaimPct) / 100).toLocaleString('en-IN')} will be deducted for Mediclaim, leaving{' '}
+              <strong className="text-emerald-400">
+                ₹{(10000 - (10000 * mediclaimPct) / 100).toLocaleString('en-IN')} Net In-Hand Salary
+              </strong>
+              .
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Generated Payroll Runs List */}
+      <div className="rounded-3xl bg-white/[0.02] border border-white/5 overflow-hidden shadow-2xl">
+        <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-cyan-400" /> Monthly Payroll Cycles ({runs.length})
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Select a monthly payroll cycle to review employee salaries or release money</p>
+          </div>
+        </div>
+
+        {runs.length === 0 ? (
+          <div className="text-center py-16 text-slate-500 text-sm">
+            <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            No payroll runs generated yet. Select a month above and click &quot;Generate Draft&quot;.
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {runs.map((run) => {
+              const monthNames = [
+                'January',
+                'February',
+                'March',
+                'April',
+                'May',
+                'June',
+                'July',
+                'August',
+                'September',
+                'October',
+                'November',
+                'December',
+              ]
+              const isFinalized = run.status === 'finalized'
+
+              return (
+                <div
+                  key={run.id}
+                  className="p-5 sm:p-6 hover:bg-white/[0.03] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg border ${
+                        isFinalized
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}
+                    >
+                      <IndianRupee className="w-6 h-6" />
+                    </div>
+
+                    <div>
+                      <h4 className="font-extrabold text-white text-lg">
+                        {monthNames[run.month - 1]} {run.year}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        {isFinalized ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            <ShieldCheck className="w-3 h-3" /> RELEASED & DISBURSED
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            DRAFT PENDING
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500">• Created {new Date(run.generated_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    {runDetails.status === 'finalized' && (
-                      <>
-                        <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
-                          <FileSpreadsheet className="w-4 h-4" /> Excel
-                        </button>
-                        <button onClick={generatePDFs} className="flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
-                          <FileText className="w-4 h-4" /> All Payslips (PDF)
-                        </button>
-                      </>
-                    )}
-                    {runDetails.status === 'draft' && (
-                      <button onClick={handleFinalize} className="flex items-center gap-2 bg-valid hover:bg-valid-dark text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
-                        <CheckCircle2 className="w-4 h-4" /> Finalize Payroll
-                      </button>
-                    )}
-                    <button onClick={() => setSelectedRunId(null)} className="text-slate-400 hover:text-white px-4 py-2 text-sm font-semibold transition-colors">
-                      Close
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => loadDetails(run.id)}
+                      className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs border border-white/10 transition-colors"
+                    >
+                      Manage &amp; Inspect Salaries →
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* PAYROLL DETAILS MODAL */}
+      <Dialog.Root open={!!selectedRunId} onOpenChange={(open) => !open && setSelectedRunId(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 animate-fade-in" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[90vh] bg-slate-900 border border-white/10 rounded-3xl shadow-2xl p-6 overflow-hidden flex flex-col z-50">
+            {isLoadingDetails || !runDetails ? (
+              <div className="py-20 text-center text-slate-400 space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-cyan-400" />
+                <p className="text-xs font-semibold">Loading employee salary breakdown...</p>
+              </div>
+            ) : (
+              <div className="flex flex-col h-full overflow-hidden space-y-6">
+                {/* Modal Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Dialog.Title className="text-2xl font-extrabold text-white">
+                        Payroll Run: {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][runDetails.month - 1]} {runDetails.year}
+                      </Dialog.Title>
+
+                      {runDetails.status === 'finalized' ? (
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          RELEASED &amp; DISBURSED
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          DRAFT
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Inspect individual base salaries, mediclaim cuts, net in-hand pay, and release money for this month.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={exportToExcel}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                    </button>
+                    <button
+                      onClick={generatePDFs}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20"
+                    >
+                      <FileText className="w-4 h-4" /> Download All Payslips
                     </button>
                   </div>
                 </div>
 
-                {/* Table Area */}
-                <div className="overflow-y-auto flex-1 bg-[#1E293B]/20 p-6">
-                  <div className="geo-card !p-0">
-                    <table className="w-full text-left text-sm text-slate-300">
-                      <thead className="bg-[#0F172A] text-xs uppercase text-slate-500 font-semibold border-b border-[#1E293B]">
-                        <tr>
-                          <th className="px-4 py-3">Employee</th>
-                          <th className="px-4 py-3 text-right">Base Pay</th>
-                          <th className="px-4 py-3 text-right">Adjustments</th>
-                          <th className="px-4 py-3 text-right">Deductions</th>
-                          <th className="px-4 py-3 text-right font-bold text-white">Net Pay</th>
-                          {runDetails.status === 'draft' && <th className="px-4 py-3 text-center">Edit</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#1E293B]">
-                        {runDetails.payroll_line_items.map(li => (
-                          <tr key={li.id} className="hover:bg-[#1E293B]/30">
+                {/* 3 Metric Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Gross Base Salary</span>
+                    <p className="text-2xl font-extrabold text-white font-mono mt-1">
+                      ₹{totalBasePaySum.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                    <span className="text-[10px] font-bold text-rose-400 uppercase">Total Mediclaim &amp; Deductions</span>
+                    <p className="text-2xl font-extrabold text-rose-300 font-mono mt-1">
+                      -₹{totalDeductionsSum.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase">Net In-Hand Salary Released</span>
+                    <p className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
+                      ₹{totalNetPaySum.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Scrollable Table */}
+                <div className="flex-1 overflow-y-auto border border-white/5 rounded-2xl custom-scrollbar">
+                  <table className="w-full text-left text-xs text-slate-300 border-collapse">
+                    <thead className="text-[10px] uppercase text-slate-400 font-bold bg-slate-950 sticky top-0 border-b border-white/5 z-10">
+                      <tr>
+                        <th className="px-4 py-3">Employee</th>
+                        <th className="px-4 py-3">Outlet</th>
+                        <th className="px-4 py-3">Attendance</th>
+                        <th className="px-4 py-3">Base Pay</th>
+                        <th className="px-4 py-3">Mediclaim Cut</th>
+                        <th className="px-4 py-3">Bonus / Adj</th>
+                        <th className="px-4 py-3">Net In-Hand</th>
+                        <th className="px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {runDetails.payroll_line_items.map((li) => {
+                        const theme = getOutletColor(li.employee?.outlet?.name)
+                        const basePay = Number(li.base_pay) || 0
+                        const deductions = Number(li.deductions) || 0
+                        const manual = Number(li.manual_adjustments) || 0
+                        const netPay = Number(li.net_pay) || 0
+
+                        return (
+                          <tr key={li.id} className="hover:bg-white/[0.02] transition-colors">
+                            {/* Employee */}
                             <td className="px-4 py-3">
-                              <p className="font-semibold text-white">{li.employee?.full_name}</p>
-                              <p className="text-xs text-slate-500">{li.employee?.outlet?.name} • {li.days_present}P {li.days_leave_paid}L</p>
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-white text-xs shrink-0"
+                                  style={{ background: theme.gradient }}
+                                >
+                                  {li.employee?.full_name.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-white leading-tight">{li.employee?.full_name}</p>
+                                  <span className="text-[9px] text-slate-500 uppercase">{li.employee?.role}</span>
+                                </div>
+                              </div>
                             </td>
-                            <td className="px-4 py-3 text-right font-mono">₹{Number(li.base_pay).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-right text-valid font-mono">+{Number(li.manual_adjustments).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-right text-danger font-mono">-{Number(li.deductions).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-right font-bold text-white font-mono">₹{Number(li.net_pay).toFixed(2)}</td>
-                            {runDetails.status === 'draft' && (
-                              <td className="px-4 py-3 text-center">
+
+                            {/* Outlet */}
+                            <td className="px-4 py-3">
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold"
+                                style={{
+                                  background: theme.badgeBg,
+                                  color: theme.badgeText,
+                                  border: `1px solid ${theme.badgeBorder}`,
+                                }}
+                              >
+                                {li.employee?.outlet?.name || 'Main'}
+                              </span>
+                            </td>
+
+                            {/* Attendance */}
+                            <td className="px-4 py-3 font-mono text-[11px]">
+                              <span className="text-emerald-400 font-bold">{li.days_present}P</span> /{' '}
+                              <span className="text-cyan-400">{li.days_leave_paid}L</span> /{' '}
+                              <span className="text-rose-400">{li.days_absent_unexcused}A</span>
+                            </td>
+
+                            {/* Base Pay */}
+                            <td className="px-4 py-3 font-mono font-semibold text-white">
+                              ₹{basePay.toLocaleString('en-IN')}
+                            </td>
+
+                            {/* Mediclaim Cut */}
+                            <td className="px-4 py-3 font-mono text-rose-400 font-semibold">
+                              -₹{deductions.toLocaleString('en-IN')}
+                            </td>
+
+                            {/* Adjustments */}
+                            <td className="px-4 py-3 font-mono text-cyan-400 font-semibold">
+                              {manual >= 0 ? `+₹${manual}` : `-₹${Math.abs(manual)}`}
+                            </td>
+
+                            {/* Net In-Hand Pay */}
+                            <td className="px-4 py-3 font-mono text-sm font-extrabold text-emerald-400">
+                              ₹{netPay.toLocaleString('en-IN')}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3">
+                              {runDetails.status !== 'finalized' && (
                                 <button
                                   onClick={() => {
                                     setEditingItem(li)
                                     setEditForm({
-                                      manual_adjustments: li.manual_adjustments,
+                                      manual_adjustments: Number(li.manual_adjustments) || 0,
                                       adjustment_note: li.adjustment_note || '',
-                                      deductions: li.deductions,
-                                      deduction_note: li.deduction_note || ''
+                                      deductions: Number(li.deductions) || 0,
+                                      deduction_note: li.deduction_note || '',
                                     })
                                   }}
-                                  className="p-2 text-slate-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
+                                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-cyan-400 font-bold text-[10px] border border-white/10"
                                 >
-                                  <Edit3 className="w-4 h-4" />
+                                  Edit Pay
                                 </button>
-                              </td>
-                            )}
+                              )}
+                            </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </>
-            ) : null}
+
+                {/* Footer Release Button */}
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/5">
+                  <Dialog.Close className="px-4 py-2 rounded-xl bg-white/5 text-slate-400 hover:text-white font-bold text-xs">
+                    Close
+                  </Dialog.Close>
+
+                  {runDetails.status !== 'finalized' && (
+                    <button
+                      onClick={handleFinalize}
+                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 shadow-xl"
+                    >
+                      <Send className="w-4 h-4" /> Release Money &amp; Pay Employees (₹
+                      {totalNetPaySum.toLocaleString('en-IN')})
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Edit Adjustments Dialog */}
+      {/* EDIT ITEM ADJUSTMENTS MODAL */}
       <Dialog.Root open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-[#0F172A]/80 backdrop-blur-sm z-[60] animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[#0F172A] border border-[#334155] rounded-2xl shadow-2xl z-[60] p-6 animate-fade-in">
-            <Dialog.Title className="text-xl font-bold text-white mb-4">Edit Adjustments</Dialog.Title>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Additions (Bonus/Overtime)</label>
-                <input
-                  type="number"
-                  value={editForm.manual_adjustments}
-                  onChange={e => setEditForm({...editForm, manual_adjustments: Number(e.target.value)})}
-                  className="w-full bg-[#1E293B] border border-[#334155] rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent text-sm mb-2"
-                />
-                <input
-                  type="text"
-                  placeholder="Note for addition..."
-                  value={editForm.adjustment_note}
-                  onChange={e => setEditForm({...editForm, adjustment_note: e.target.value})}
-                  className="w-full bg-[#1E293B] border border-[#334155] rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent text-sm"
-                />
-              </div>
+          <Dialog.Overlay className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl p-6 space-y-4 z-50">
+            <Dialog.Title className="text-lg font-bold text-white">
+              Edit Salary Adjustments for {editingItem?.employee?.full_name}
+            </Dialog.Title>
 
+            <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Deductions (Advances/Penalty)</label>
+                <label className="block font-semibold text-slate-400 mb-1">Mediclaim / Deductions (₹)</label>
                 <input
                   type="number"
                   value={editForm.deductions}
-                  onChange={e => setEditForm({...editForm, deductions: Number(e.target.value)})}
-                  className="w-full bg-[#1E293B] border border-[#334155] rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent text-sm mb-2"
-                />
-                <input
-                  type="text"
-                  placeholder="Note for deduction..."
-                  value={editForm.deduction_note}
-                  onChange={e => setEditForm({...editForm, deduction_note: e.target.value})}
-                  className="w-full bg-[#1E293B] border border-[#334155] rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent text-sm"
+                  onChange={(e) => setEditForm({ ...editForm, deductions: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-[#1E293B]">
-                <button
-                  onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveAdjustments}
-                  className="bg-accent hover:bg-accent-hover text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  Save Changes
-                </button>
+              <div>
+                <label className="block font-semibold text-slate-400 mb-1">Deduction Note</label>
+                <input
+                  type="text"
+                  value={editForm.deduction_note}
+                  onChange={(e) => setEditForm({ ...editForm, deduction_note: e.target.value })}
+                  placeholder="e.g. Mediclaim Policy Cut (20%)"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-white"
+                />
               </div>
+
+              <div>
+                <label className="block font-semibold text-slate-400 mb-1">Manual Bonus / Addition (₹)</label>
+                <input
+                  type="number"
+                  value={editForm.manual_adjustments}
+                  onChange={(e) => setEditForm({ ...editForm, manual_adjustments: Number(e.target.value) })}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-400 mb-1">Bonus Note</label>
+                <input
+                  type="text"
+                  value={editForm.adjustment_note}
+                  onChange={(e) => setEditForm({ ...editForm, adjustment_note: e.target.value })}
+                  placeholder="e.g. Monthly Performance Bonus"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 text-slate-400 hover:text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAdjustments}
+                className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400"
+              >
+                Save Changes
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

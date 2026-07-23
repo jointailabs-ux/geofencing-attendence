@@ -83,24 +83,86 @@ export default async function StaffProfilePage() {
 
       {/* Details Card */}
       <div className="geo-card">
-        <h2 className="text-xs font-semibold uppercase tracking-wider mb-4"
-          style={{ color: '#a78bfa' }}>Account Details</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#a78bfa' }}>
+          Account Details
+        </h2>
         <div className="space-y-3">
           {detailItems.map((item, i) => (
             <div key={i} className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: `${item.color}15` }}>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${item.color}15` }}
+              >
                 <item.icon className="w-4 h-4" style={{ color: item.color }} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-slate-500">{item.label}</p>
                 <div className="flex items-center gap-2">
-                  <p className={`text-sm text-slate-300 truncate ${item.mono ? 'font-mono font-semibold' : ''}`}>{item.value}</p>
-                  {item.badge && <StatusBadge variant={item.badge as 'fixed' | 'daily' | 'hourly'} size="sm" showDot={false} />}
+                  <p className={`text-sm text-slate-300 truncate ${item.mono ? 'font-mono font-semibold' : ''}`}>
+                    {item.value}
+                  </p>
+                  {item.badge && (
+                    <StatusBadge
+                      variant={item.badge as 'fixed' | 'daily' | 'hourly'}
+                      size="sm"
+                      showDot={false}
+                    />
+                  )}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Salary & Mediclaim Payroll Card */}
+      <div
+        className="rounded-2xl p-5 space-y-4"
+        style={{
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.04), rgba(10,15,30,0.9))',
+          border: '1px solid rgba(16,185,129,0.2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+            Salary &amp; Mediclaim Payroll
+          </h2>
+          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+            Active Scheme
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 bg-white/[0.02] p-3 rounded-xl border border-white/5 text-xs font-mono">
+          <div>
+            <span className="text-[10px] text-slate-500 uppercase block font-sans">Base Monthly Salary</span>
+            <span className="font-bold text-white text-base mt-0.5 block">
+              ₹{Number(employee.base_salary || 0).toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[10px] text-rose-400 uppercase block font-sans">Mediclaim Cut (20%)</span>
+            <span className="font-bold text-rose-400 text-base mt-0.5 block">
+              -₹{((Number(employee.base_salary || 0) * 20) / 100).toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs pt-1">
+          <div>
+            <span className="text-[10px] text-slate-400 uppercase block">Est. Net In-Hand Pay</span>
+            <span className="text-lg font-extrabold text-emerald-400 font-mono">
+              ₹{(Number(employee.base_salary || 0) * 0.8).toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <a
+            href="/staff/payslips"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-colors"
+          >
+            View Monthly Payslips →
+          </a>
         </div>
       </div>
 

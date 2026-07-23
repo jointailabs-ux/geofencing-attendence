@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculatePayrollForEmployee, type PayrollEmployee, type PayrollAttendance } from '@/lib/payroll/calculate'
 import type { PayrollRun, PayrollLineItem } from '@/lib/types/database'
 
-export async function generateDraftPayroll(orgId: string, month: number, year: number) {
+export async function generateDraftPayroll(orgId: string, month: number, year: number, mediclaimPct: number = 10) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
@@ -123,14 +123,15 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
       is_paid: Boolean((l.leave_types as unknown as { is_paid: boolean })?.is_paid)
     }))
 
-    // Calculate
+    // Calculate with mediclaimPct
     const calc = calculatePayrollForEmployee(
       emp as unknown as PayrollEmployee, 
       month, 
       year, 
       totalWorkingDays, 
       attendance as unknown as PayrollAttendance[], 
-      formattedLeaves
+      formattedLeaves,
+      mediclaimPct
     )
 
     return {
@@ -141,7 +142,9 @@ export async function generateDraftPayroll(orgId: string, month: number, year: n
       days_leave_unpaid: calc.days_leave_unpaid,
       days_absent_unexcused: calc.days_absent_unexcused,
       base_pay: calc.base_pay,
-      net_pay: calc.base_pay // Init net_pay = base_pay
+      deductions: calc.mediclaim_deduction,
+      deduction_note: `Mediclaim Deduction (${mediclaimPct}%)`,
+      net_pay: calc.net_pay
     }
   })
 
