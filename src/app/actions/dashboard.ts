@@ -18,7 +18,8 @@ export async function getAdminDashboardStats(orgId: string) {
     { count: pendingLeaves },
     { data: currPayroll },
     { data: outletsStatsData },
-    { data: todayLogs }
+    { data: todayLogs },
+    { data: allEmployees }
   ] = await Promise.all([
     supabase.from('outlets').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
     supabase.from('employees').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
@@ -46,10 +47,15 @@ export async function getAdminDashboardStats(orgId: string) {
       .eq('org_id', orgId),
     supabase
       .from('attendance_logs')
-      .select('id, type, timestamp, status, employee:employees!attendance_logs_employee_id_fkey!inner(id, full_name, role, org_id)')
+      .select('id, type, timestamp, status, override_reason, distance_from_outlet_meters, employee:employees!attendance_logs_employee_id_fkey!inner(id, full_name, role, org_id, outlet:outlets(name))')
       .eq('employee.org_id', orgId)
       .gte('timestamp', startOfDay)
-      .order('timestamp', { ascending: true })
+      .order('timestamp', { ascending: true }),
+    supabase
+      .from('employees')
+      .select('id, full_name, role, outlet:outlets(name)')
+      .eq('org_id', orgId)
+      .eq('status', 'active')
   ])
 
   // Calculate unique present employees count today
@@ -66,7 +72,6 @@ export async function getAdminDashboardStats(orgId: string) {
   // Per-outlet breakdown
   const outletBreakdown = outletsStatsData?.map(o => {
     const empCount = o.employees?.length || 0
-    // checkinsToday has employee_id. Filter by whether employee belongs to this outlet
     const presentCount = checkinsToday?.filter(l => 
       (o.employees as unknown as { id: string }[])?.some(e => e.id === l.employee_id)
     )?.length || 0
@@ -79,29 +84,137 @@ export async function getAdminDashboardStats(orgId: string) {
     }
   }) || []
 
-  // Generate Live Roster from today's logs
-  type LiveRosterEmployee = {
+  // Detailed Live Roster & Worked Hours per Employee
+  type TypedLog = {
     id: string
-    name: string
-    role: string
+    type: 'check_in' | 'check_out'
+    timestamp: string
     status: string
-    lastLogTime: string
+    override_reason: string | null
+    distance_from_outlet_meters: number
+    employee?: {
+      id: string
+      full_name: string
+      role: string
+      outlet?: { name: string }
+    }
   }
-  const liveRosterMap = new Map<string, LiveRosterEmployee>()
-  todayLogs?.forEach(log => {
-    const emp = log.employee as unknown as { id: string, full_name: string, role: string }
-    liveRosterMap.set(emp.id, {
+
+  const logs = (todayLogs || []) as unknown as TypedLog[]
+  const employeesList = (allEmployees || []) as unknown as { id: string; full_name: string; role: string; outlet?: { name: string } }[]
+
+  const liveRoster = employeesList.map((emp) => {
+    const empLogs = logs.filter((l) => l.employee?.id === emp.id)
+    const firstCheckIn = empLogs.find((l) => l.type === 'check_in')
+    const lastLog = empLogs.length > 0 ? empLogs[empLogs.length - 1] : null
+
+    let currentStatus: 'WORKING' | 'ON_BREAK' | 'SHIFT_ENDED' | 'NOT_STARTED' = 'NOT_STARTED'
+    let clockInTime: string | null = null
+    let clockOutTime: string | null = null
+
+    if (firstCheckIn) {
+      clockInTime = new Date(firstCheckIn.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    }
+
+    if (!lastLog) {
+      currentStatus = 'NOT_STARTED'
+      clockOutTime = '--:--'
+    } else if (lastLog.type === 'check_in') {
+      currentStatus = 'WORKING'
+      clockOutTime = 'In Progress'
+    } else {
+      if (lastLog.override_reason === 'FINAL_SHIFT_END') {
+        currentStatus = 'SHIFT_ENDED'
+        clockOutTime = new Date(lastLog.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      } else {
+        currentStatus = 'ON_BREAK'
+        clockOutTime = 'On Break'
+      }
+    }
+
+    // Active Worked & Break Ms
+    let workedMs = 0
+    let breakMs = 0
+    let lastInTime: number | null = null
+    let lastBreakTime: number | null = null
+
+    for (const l of empLogs) {
+      const t = new Date(l.timestamp).getTime()
+      if (l.type === 'check_in') {
+        if (lastBreakTime !== null) {
+          breakMs += t - lastBreakTime
+          lastBreakTime = null
+        }
+        lastInTime = t
+      } else if (l.type === 'check_out') {
+        if (lastInTime !== null) {
+          workedMs += t - lastInTime
+          lastInTime = null
+        }
+        if (l.override_reason !== 'FINAL_SHIFT_END') {
+          lastBreakTime = t
+        }
+      }
+    }
+
+    const now = Date.now()
+    if (lastInTime !== null) {
+      workedMs += now - lastInTime
+    }
+    if (lastBreakTime !== null) {
+      breakMs += now - lastBreakTime
+    }
+
+    const workedHoursStr = workedMs > 0 ? `${Math.floor(workedMs / 3600000)}h ${Math.floor((workedMs % 3600000) / 60000)}m` : '0h 0m'
+    const breakTimeStr = breakMs > 0 ? `${Math.floor(breakMs / 3600000)}h ${Math.floor((breakMs % 3600000) / 60000)}m` : '0h 0m'
+
+    return {
       id: emp.id,
       name: emp.full_name,
       role: emp.role,
-      status: log.type === 'check_in' ? 'checked_in' : 'checked_out',
-      lastLogTime: log.timestamp
-    })
+      outletName: emp.outlet?.name || 'Unassigned',
+      clockInTime: clockInTime || '--:--',
+      clockOutTime: clockOutTime || '--:--',
+      currentStatus,
+      hoursWorkedStr: workedHoursStr,
+      breakTimeStr,
+      hasFlags: empLogs.some((l) => l.status === 'flagged'),
+      lastLogTime: lastLog?.timestamp || null,
+      distanceMeters: lastLog?.distance_from_outlet_meters ?? null,
+    }
+  }).sort((a, b) => {
+    const priority = { WORKING: 0, ON_BREAK: 1, SHIFT_ENDED: 2, NOT_STARTED: 3 }
+    return priority[a.currentStatus] - priority[b.currentStatus]
   })
-  
-  // Sort by most recent activity
-  const liveRoster = Array.from(liveRosterMap.values())
-    .sort((a, b) => new Date(b.lastLogTime).getTime() - new Date(a.lastLogTime).getTime())
+
+  // Real-time Activity Feed Logs Stream (Last 12 events)
+  const activityFeed = [...logs].reverse().slice(0, 12).map((l) => {
+    let label = 'Clocked In'
+    if (l.type === 'check_in' && l.override_reason === 'AUTO_GEOFENCE_RESUME') label = 'Resumed Shift (Returned in Range)'
+    else if (l.type === 'check_out' && l.override_reason === 'FINAL_SHIFT_END') label = 'Ended Shift for Today'
+    else if (l.type === 'check_out' && l.override_reason === 'AUTO_GEOFENCE_BREAK') label = 'Auto Break (Stepped Out of Range)'
+    else if (l.type === 'check_out') label = 'Clocked Out'
+
+    return {
+      id: l.id,
+      employeeName: l.employee?.full_name || 'Staff',
+      role: l.employee?.role || 'staff',
+      outletName: l.employee?.outlet?.name || 'Outlet',
+      type: l.type,
+      label,
+      timestamp: l.timestamp,
+      distanceMeters: l.distance_from_outlet_meters,
+      status: l.status,
+    }
+  })
+
+  // Summary status counts for dashboard summary card
+  const statusCounts = {
+    working: liveRoster.filter((e) => e.currentStatus === 'WORKING').length,
+    onBreak: liveRoster.filter((e) => e.currentStatus === 'ON_BREAK').length,
+    shiftEnded: liveRoster.filter((e) => e.currentStatus === 'SHIFT_ENDED').length,
+    notStarted: liveRoster.filter((e) => e.currentStatus === 'NOT_STARTED').length,
+  }
 
   return {
     metrics: {
@@ -109,10 +222,12 @@ export async function getAdminDashboardStats(orgId: string) {
       employeeCount: employeeCount || 0,
       attendancePercentage,
       pendingLeaves: pendingLeaves || 0,
-      payrollCost
+      payrollCost,
+      statusCounts,
     },
     outletBreakdown,
-    liveRoster
+    liveRoster,
+    activityFeed,
   }
 }
 
@@ -203,32 +318,92 @@ export async function getManagerDashboardStats(outletId: string) {
       .order('timestamp', { ascending: true })
   ])
 
+  type TypedLog = {
+    id: string
+    employee_id: string
+    type: 'check_in' | 'check_out'
+    timestamp: string
+    status: string
+    override_reason?: string | null
+  }
+
+  const logs = (todayLogs || []) as unknown as TypedLog[]
   let presentCount = 0
-  const roster = employees?.map(emp => {
-    const empLogs = todayLogs?.filter(l => l.employee_id === emp.id) || []
-    
-    let currentStatus: 'checked_in' | 'checked_out' | 'absent' = 'absent'
-    let lastLogTime = null
-    
-    if (empLogs.length > 0) {
-      const lastLog = empLogs[empLogs.length - 1]
-      if (lastLog.type === 'check_in') {
-        currentStatus = 'checked_in'
-        presentCount++
-      } else {
-        currentStatus = 'checked_out'
-        presentCount++
-      }
-      lastLogTime = lastLog.timestamp
+
+  const roster = employees?.map((emp) => {
+    const empLogs = logs.filter((l) => l.employee_id === emp.id)
+    const firstCheckIn = empLogs.find((l) => l.type === 'check_in')
+    const lastLog = empLogs.length > 0 ? empLogs[empLogs.length - 1] : null
+
+    let currentStatus: 'WORKING' | 'ON_BREAK' | 'SHIFT_ENDED' | 'NOT_STARTED' = 'NOT_STARTED'
+    let clockInTime: string | null = null
+    let clockOutTime: string | null = null
+
+    if (firstCheckIn) {
+      clockInTime = new Date(firstCheckIn.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
     }
+
+    if (!lastLog) {
+      currentStatus = 'NOT_STARTED'
+      clockOutTime = '--:--'
+    } else if (lastLog.type === 'check_in') {
+      currentStatus = 'WORKING'
+      clockOutTime = 'In Progress'
+      presentCount++
+    } else {
+      presentCount++
+      if (lastLog.override_reason === 'FINAL_SHIFT_END') {
+        currentStatus = 'SHIFT_ENDED'
+        clockOutTime = new Date(lastLog.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      } else {
+        currentStatus = 'ON_BREAK'
+        clockOutTime = 'On Break'
+      }
+    }
+
+    // Active Worked & Break Ms
+    let workedMs = 0
+    let breakMs = 0
+    let lastInTime: number | null = null
+    let lastBreakTime: number | null = null
+
+    for (const l of empLogs) {
+      const t = new Date(l.timestamp).getTime()
+      if (l.type === 'check_in') {
+        if (lastBreakTime !== null) {
+          breakMs += t - lastBreakTime
+          lastBreakTime = null
+        }
+        lastInTime = t
+      } else if (l.type === 'check_out') {
+        if (lastInTime !== null) {
+          workedMs += t - lastInTime
+          lastInTime = null
+        }
+        if (l.override_reason !== 'FINAL_SHIFT_END') {
+          lastBreakTime = t
+        }
+      }
+    }
+
+    const now = Date.now()
+    if (lastInTime !== null) workedMs += now - lastInTime
+    if (lastBreakTime !== null) breakMs += now - lastBreakTime
+
+    const workedHoursStr = workedMs > 0 ? `${Math.floor(workedMs / 3600000)}h ${Math.floor((workedMs % 3600000) / 60000)}m` : '0h 0m'
+    const breakTimeStr = breakMs > 0 ? `${Math.floor(breakMs / 3600000)}h ${Math.floor((breakMs % 3600000) / 60000)}m` : '0h 0m'
 
     return {
       id: emp.id,
       name: emp.full_name,
       role: emp.role,
-      status: currentStatus,
-      lastLogTime,
-      flagged: empLogs.some(l => l.status === 'flagged')
+      clockInTime: clockInTime || '--:--',
+      clockOutTime: clockOutTime || '--:--',
+      currentStatus,
+      hoursWorkedStr: workedHoursStr,
+      breakTimeStr,
+      lastLogTime: lastLog?.timestamp || null,
+      flagged: empLogs.some((l) => l.status === 'flagged'),
     }
   }) || []
 
@@ -236,9 +411,9 @@ export async function getManagerDashboardStats(outletId: string) {
     metrics: {
       staffCount: staffCount || 0,
       presentCount,
-      pendingLeaves: pendingLeaves || 0
+      pendingLeaves: pendingLeaves || 0,
     },
-    roster
+    roster,
   }
 }
 
