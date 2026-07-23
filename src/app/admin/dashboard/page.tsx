@@ -2,6 +2,7 @@ import { getCachedEmployee } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getAdminDashboardStats } from '@/app/actions/dashboard'
 import { LiveWorkforceRoster } from '@/components/dashboard/LiveWorkforceRoster'
+import { getOutletColor } from '@/lib/outletColors'
 import {
   Building2,
   Users,
@@ -367,38 +368,39 @@ export default async function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {outletBreakdown.map((o) => (
-                <tr key={o.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                        <Building2 className="w-4 h-4 text-cyan-400" />
-                      </div>
-                      <span className="font-medium text-white">{o.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-mono">{o.employeeCount}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-full max-w-[120px] h-2 bg-slate-800 rounded-full overflow-hidden">
+              {outletBreakdown.map((o) => {
+                const theme = getOutletColor(o.name)
+                return (
+                  <tr key={o.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
                         <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${o.attendancePercentage}%`,
-                            background:
-                              o.attendancePercentage >= 80
-                                ? '#10B981'
-                                : o.attendancePercentage >= 50
-                                ? '#F59E0B'
-                                : '#EF4444',
-                          }}
-                        />
+                          className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white shadow"
+                          style={{ background: theme.gradient }}
+                        >
+                          <Building2 className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="font-semibold text-white">{o.name}</span>
                       </div>
-                      <span className="font-mono text-xs font-bold text-white">{o.attendancePercentage}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4 font-mono">{o.employeeCount} staff</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-full max-w-[120px] h-2 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${o.attendancePercentage}%`,
+                              background: theme.gradient,
+                            }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs font-bold text-white">{o.attendancePercentage}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
