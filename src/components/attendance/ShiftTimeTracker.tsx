@@ -87,7 +87,7 @@ export function ShiftTimeTracker({ todayLogs, outletName }: ShiftTimeTrackerProp
     currentStatus = 'ACTIVE'
     clockOutTimeStr = 'In Progress'
   } else {
-    if (lastLog.is_final_checkout) {
+    if (lastLog.is_final_checkout || lastLog.override_reason === 'FINAL_SHIFT_END') {
       currentStatus = 'SHIFT_ENDED'
       clockOutTimeStr = new Date(lastLog.timestamp).toLocaleTimeString('en-IN', {
         hour: '2-digit',

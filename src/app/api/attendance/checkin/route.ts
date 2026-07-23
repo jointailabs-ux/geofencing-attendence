@@ -7,6 +7,7 @@ const checkinSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   accuracy: z.number(),
+  is_break_resume: z.boolean().optional(),
 })
 
 // Security constants
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 })
     }
 
-    const { latitude, longitude, accuracy } = result.data
+    const { latitude, longitude, accuracy, is_break_resume } = result.data
 
     // 3. GPS accuracy gate — reject if signal is too weak
     if (accuracy > MAX_GPS_ACCURACY_METERS) {
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
         gps_accuracy_meters: Math.round(accuracy),
         distance_from_outlet_meters: distance,
         status: status,
+        override_reason: is_break_resume ? 'AUTO_GEOFENCE_RESUME' : 'MANUAL_SHIFT_START',
       })
       .select()
       .single()
