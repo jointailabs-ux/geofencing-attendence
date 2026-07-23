@@ -5,6 +5,7 @@ import { FileText, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import { StaffPayslipCard } from '@/components/payroll/StaffPayslipCard'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'My Payslips - GeoAttend' }
 
 export default async function StaffPayslipsPage() {
@@ -20,19 +21,44 @@ export default async function StaffPayslipsPage() {
 
   if (!employee) redirect('/login')
 
-  const { data: lineItems } = await supabase
+  // Fetch line items with payroll run info joined
+  const { data: lineItems, error: lineErr } = await supabase
     .from('payroll_line_items')
-    .select('*, payroll_runs(*), payroll_run:payroll_runs(*)')
+    .select(`
+      id,
+      base_pay,
+      deductions,
+      net_pay,
+      manual_adjustments,
+      days_present,
+      days_leave_paid,
+      deduction_note,
+      adjustment_note,
+      created_at,
+      payroll_run_id,
+      payroll_runs (
+        id,
+        status,
+        month,
+        year,
+        finalized_at
+      )
+    `)
     .eq('employee_id', employee.id)
     .order('created_at', { ascending: false })
 
-  const finalizedItems = (lineItems || []).filter((li) => {
-    const run = (li.payroll_runs || (li as unknown as { payroll_run?: { status: string } }).payroll_run) as
-      | { status: string }
-      | undefined
+  if (lineErr) {
+    console.error('Error fetching payslips:', lineErr.message)
+  }
+
+  // Show items that are sent to profile OR are in a finalized run
+  const visibleItems = (lineItems || []).filter((li) => {
     const isSent = Boolean(li.adjustment_note && li.adjustment_note.includes('Sent'))
-    return isSent || run?.status === 'finalized'
+    const runStatus = (li.payroll_runs as unknown as { status: string } | null)?.status
+    return isSent || runStatus === 'finalized'
   })
+
+  const outletName = (employee.outlets as unknown as { name: string } | null)?.name || 'Main'
 
   return (
     <div className="animate-fade-in space-y-6 pb-12">
@@ -47,7 +73,7 @@ export default async function StaffPayslipsPage() {
       </div>
 
       <div className="space-y-4">
-        {finalizedItems.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <div className="rounded-3xl p-12 text-center text-slate-500 bg-white/[0.02] border border-white/5 shadow-2xl">
             <FileText className="w-12 h-12 mx-auto mb-3 opacity-30 text-emerald-400" />
             <p className="text-sm font-semibold text-slate-300">No released payslips available yet.</p>
@@ -56,18 +82,16 @@ export default async function StaffPayslipsPage() {
             </p>
           </div>
         ) : (
-          finalizedItems.map((li) => {
-            const run = (li.payroll_runs || (li as unknown as { payroll_run?: { year: number; month: number; finalized_at?: string } }).payroll_run) as
+          visibleItems.map((li) => {
+            const run = li.payroll_runs as unknown as
               | { year: number; month: number; finalized_at?: string }
-              | undefined
-
-            const outletName = (employee.outlets as unknown as { name: string } | null)?.name || 'Main'
+              | null
 
             return (
               <StaffPayslipCard
                 key={li.id}
                 item={li}
-                run={run}
+                run={run ?? undefined}
                 employeeName={employee.full_name}
                 role={employee.role}
                 outletName={outletName}
