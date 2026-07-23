@@ -38,20 +38,35 @@ export async function login(formData: FormData) {
   const passwordToUse = employee.pin || input
 
   // 2. Authenticate with Supabase Auth using the email and PIN as password
-  const { error } = await supabase.auth.signInWithPassword({
+  let authResult = await supabase.auth.signInWithPassword({
     email: employee.email,
     password: passwordToUse,
   })
 
-  if (error) {
+  // Auto-confirm email if Supabase returns 'Email not confirmed'
+  if (authResult.error && authResult.error.message.includes('Email not confirmed')) {
+    const { data: listUsers } = await serviceClient.auth.admin.listUsers()
+    const userToConfirm = listUsers?.users?.find((u) => u.email === employee.email)
+
+    if (userToConfirm) {
+      await serviceClient.auth.admin.updateUserById(userToConfirm.id, { email_confirm: true })
+      // Retry login after auto-confirming
+      authResult = await supabase.auth.signInWithPassword({
+        email: employee.email,
+        password: passwordToUse,
+      })
+    }
+  }
+
+  if (authResult.error) {
     let message = 'An unexpected error occurred. Please try again.'
-    if (error.message.includes('Invalid login credentials')) {
+    if (authResult.error.message.includes('Invalid login credentials')) {
       message = 'Invalid PIN or password.'
-    } else if (error.message.includes('Email not confirmed')) {
+    } else if (authResult.error.message.includes('Email not confirmed')) {
       message = 'Your account has not been activated yet. Contact your administrator.'
-    } else if (error.message.includes('Too many requests')) {
+    } else if (authResult.error.message.includes('Too many requests')) {
       message = 'Too many login attempts. Please wait a few minutes and try again.'
-    } else if (error.message.includes('network') || error.message.includes('fetch')) {
+    } else if (authResult.error.message.includes('network') || authResult.error.message.includes('fetch')) {
       message = 'Unable to connect. Check your internet connection.'
     }
     return { error: message }
