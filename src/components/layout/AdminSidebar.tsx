@@ -20,6 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   KeyRound,
+  Radio,
+  Smartphone,
 } from 'lucide-react'
 
 interface NavItem {
@@ -43,6 +45,8 @@ const adminNavItems: NavItem[] = [
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList, color: '#F59E0B' },
   { href: '/admin/leave', label: 'Leave', icon: CalendarOff, color: '#F43F5E' },
   { href: '/admin/payroll', label: 'Payroll', icon: Banknote, color: '#06B6D4' },
+  { href: '/admin/live-tracking', label: 'Live Tracking', icon: Radio, color: '#F97316' },
+  { href: '/admin/devices', label: 'Devices', icon: Smartphone, color: '#14B8A6' },
   { href: '/admin/settings', label: 'Settings', icon: Settings, color: '#6B7280' },
 ]
 
