@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     }
 
     // 6. Store the ping
-    await supabase.from('location_pings').insert({
+    const { error: insertErr } = await supabase.from('location_pings').insert({
       employee_id: device.employee_id,
       latitude: body.lat,
       longitude: body.lon,
@@ -128,6 +128,10 @@ export async function POST(req: Request) {
       distance_from_outlet: distanceFromOutlet,
       raw_payload: body,
     })
+
+    if (insertErr) {
+      console.error('Error inserting location ping:', insertErr.message)
+    }
 
     // 7. Auto break/resume detection
     if (employee.outlet_id) {
