@@ -172,6 +172,51 @@ export async function getPayrollRunDetails(runId: string) {
     .single()
 
   if (error) throw new Error('Failed to fetch run')
+
+  // Check if any active employee is missing from this run
+  const { data: activeEmps } = await supabase
+    .from('employees')
+    .select('id, salary_type, base_salary')
+    .eq('org_id', run.org_id)
+    .eq('status', 'active')
+
+  if (activeEmps && activeEmps.length > 0 && run.status !== 'finalized') {
+    const existingEmpIds = new Set((run.payroll_line_items || []).map((li: { employee_id: string }) => li.employee_id))
+    const missingEmps = activeEmps.filter((emp) => !existingEmpIds.has(emp.id))
+
+    if (missingEmps.length > 0) {
+      const lineItemsToInsert = missingEmps.map((emp) => {
+        const roundedBasePay = Number(emp.base_salary) || 0
+        const mediclaim_deduction = Math.round((roundedBasePay * 0.2) * 100) / 100
+        const net_pay = Math.max(0, Math.round((roundedBasePay - mediclaim_deduction) * 100) / 100)
+
+        return {
+          payroll_run_id: runId,
+          employee_id: emp.id,
+          days_present: 0,
+          days_leave_paid: 0,
+          days_leave_unpaid: 0,
+          days_absent_unexcused: 0,
+          base_pay: roundedBasePay,
+          deductions: mediclaim_deduction,
+          deduction_note: 'Mediclaim Deduction (20%)',
+          net_pay: net_pay,
+        }
+      })
+
+      await supabase.from('payroll_line_items').insert(lineItemsToInsert)
+
+      // Re-fetch updated run with missing line items added
+      const { data: updatedRun } = await supabase
+        .from('payroll_runs')
+        .select('*, payroll_line_items(*, employee:employees(id, full_name, role, base_salary, salary_type, outlets(name)))')
+        .eq('id', runId)
+        .single()
+
+      if (updatedRun) return updatedRun as unknown as PayrollRun & { payroll_line_items: PayrollLineItem[] }
+    }
+  }
+
   return run as unknown as PayrollRun & { payroll_line_items: PayrollLineItem[] }
 }
 

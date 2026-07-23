@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -318,7 +319,28 @@ export function AdminPayrollRun({ orgId, initialRuns }: { orgId: string; initial
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs text-slate-950 bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 transition-all shadow-lg disabled:opacity-50"
           >
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Generate / Calculate Month Draft
+            Generate Draft ({genMonth}/{genYear})
+          </button>
+
+          <button
+            onClick={async () => {
+              setIsGenerating(true)
+              try {
+                const res = await generateDraftPayroll(orgId, genMonth, genYear, mediclaimPct)
+                toast.success('Synced all active staff members into payroll!')
+                if (res?.runId) await loadRunDetails(res.runId)
+                router.refresh()
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'Failed to sync staff')
+              } finally {
+                setIsGenerating(false)
+              }
+            }}
+            disabled={isGenerating}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold bg-white/5 hover:bg-white/10 text-emerald-400 border border-emerald-500/30 transition-all"
+            title="Sync all newly added staff members into current month payroll"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} /> Sync Staff List
           </button>
         </div>
 
