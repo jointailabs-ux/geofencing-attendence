@@ -281,24 +281,21 @@ export async function sendIndividualPayslip(lineItemId: string) {
   if (fetchErr || !lineItem) throw new Error('Line item not found')
 
   const empName = (lineItem.employee as unknown as { full_name: string })?.full_name || 'Staff Member'
+  const currentNote = lineItem.adjustment_note || ''
+  const newNote = currentNote.includes('Sent')
+    ? currentNote
+    : currentNote
+    ? `${currentNote} (Sent to Staff Profile)`
+    : 'Sent to Staff Profile'
 
-  // Attempt updating with is_sent flag, or fallback to adjustment_note
   const { error: updateErr } = await supabase
     .from('payroll_line_items')
-    .update({ 
-      is_sent: true,
-      adjustment_note: lineItem.adjustment_note ? `${lineItem.adjustment_note} (Sent)` : 'Sent to Staff Profile'
+    .update({
+      adjustment_note: newNote,
     })
     .eq('id', lineItemId)
 
-  if (updateErr) {
-    await supabase
-      .from('payroll_line_items')
-      .update({ 
-        adjustment_note: lineItem.adjustment_note ? lineItem.adjustment_note : 'Sent to Staff Profile'
-      })
-      .eq('id', lineItemId)
-  }
+  if (updateErr) throw new Error('Failed to update line item: ' + updateErr.message)
 
   revalidatePath('/staff/payslips')
   revalidatePath('/staff/profile')
