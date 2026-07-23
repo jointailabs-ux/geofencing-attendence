@@ -170,7 +170,110 @@ export default async function ManagerDashboardPage() {
             </h2>
           </div>
 
-          <div className="flex-1 overflow-x-auto">
+          {/* Mobile View: Scroll-free responsive cards list (block md:hidden) */}
+          <div className="block md:hidden p-4 space-y-3">
+            {roster.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-sm">
+                No staff entries found for today.
+              </div>
+            ) : (
+              roster.map((emp) => (
+                <div
+                  key={emp.id}
+                  className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3"
+                >
+                  {/* Top Row: Info & Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-cyan-400 border border-cyan-500/20 text-sm shrink-0">
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <p className="font-bold text-white text-sm truncate">{emp.name}</p>
+                          {emp.flagged && (
+                            <span title="Flagged Log">
+                              <AlertCircle className="w-3 h-3 text-rose-400 shrink-0" />
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                          {emp.role.replace('_', ' ')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {emp.currentStatus === 'WORKING' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          WORKING
+                        </span>
+                      )}
+                      {emp.currentStatus === 'ON_BREAK' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          <Pause className="w-3 h-3 animate-pulse" />
+                          ON BREAK
+                        </span>
+                      )}
+                      {emp.currentStatus === 'SHIFT_ENDED' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                          <ShieldCheck className="w-3 h-3" />
+                          ENDED
+                        </span>
+                      )}
+                      {emp.currentStatus === 'NOT_STARTED' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-800 text-slate-500 border border-slate-700">
+                          NOT STARTED
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Middle Metrics Grid (2x2) */}
+                  <div className="grid grid-cols-2 gap-2 bg-white/[0.02] p-2.5 rounded-xl border border-white/5 text-xs font-mono">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase">Clock In</span>
+                      <span className="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                        <Play className="w-3 h-3" />
+                        {emp.clockInTime}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase">Clock Out</span>
+                      <span className="font-bold text-indigo-300 flex items-center gap-1 mt-0.5">
+                        <LogOut className="w-3 h-3" />
+                        {emp.clockOutTime}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase">Hours Worked</span>
+                      <span className="font-bold text-white flex items-center gap-1 mt-0.5">
+                        <Zap className="w-3 h-3 text-cyan-400" />
+                        {emp.hoursWorkedStr}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase">Break Duration</span>
+                      <span className="font-bold text-amber-400 flex items-center gap-1 mt-0.5">
+                        <Coffee className="w-3 h-3" />
+                        {emp.breakTimeStr}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop View: Full 6-column table (hidden on mobile, visible on md+) */}
+          <div className="hidden md:block flex-1 overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-300 border-collapse">
               <thead className="text-xs uppercase text-slate-500 font-bold bg-white/[0.02] border-b border-white/5">
                 <tr>
