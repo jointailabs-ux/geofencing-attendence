@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { autoCheckOutOfflineEmployees } from '@/app/actions/tracking'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_req: Request) {
@@ -22,6 +23,13 @@ export async function GET(_req: Request) {
     }
 
     const serviceClient = createServiceClient()
+
+    // Run offline check to auto-checkout employees who turned off GPS/phone
+    try {
+      await autoCheckOutOfflineEmployees()
+    } catch (err) {
+      console.error('Error in offline check:', err)
+    }
 
     // Get all active employees in org
     const { data: employees } = await serviceClient

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { calculateDistance, getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
+import { autoCheckOutOfflineEmployees } from '@/app/actions/tracking'
 
 // OwnTracks sends: { _type: "location", tid, tst, lat, lon, acc, batt, vel, alt, conn }
 interface OwnTracksPayload {
@@ -72,6 +73,13 @@ export async function POST(req: Request) {
       .from('device_registrations')
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', device.id)
+
+    // Run auto check-out for other employees who are offline
+    try {
+      await autoCheckOutOfflineEmployees()
+    } catch (err) {
+      console.error('Error running auto check-out:', err)
+    }
 
     // 4. Get employee's assigned outlet for geofence check
     const { data: employee } = await supabase
@@ -189,11 +197,8 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
-      status: 'ok',
-      inside_geofence: isInsideGeofence,
-      distance: distanceFromOutlet,
-    })
+    // Return empty array standard response to satisfy OwnTracks client
+    return NextResponse.json([])
   } catch (err) {
     console.error('Location ping error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import crypto from 'crypto'
+import { getISTStartOfDay, getISTEndOfDay } from '@/lib/utils'
 
 // Generate a unique device token for an employee
 export async function generateDeviceToken(employeeId: string) {
@@ -209,3 +210,69 @@ export async function getMyDeviceStatus() {
     lastPing: lastPing?.[0] || null,
   }
 }
+
+// Automatically check out employees who are currently checked in but have not sent a GPS ping in the last 15 minutes.
+export async function autoCheckOutOfflineEmployees() {
+  const serviceClient = createServiceClient()
+  
+  // Get active staff members
+  const { data: employees } = await serviceClient
+    .from('employees')
+    .select('id, outlet_id')
+    .eq('status', 'active')
+
+  if (!employees || employees.length === 0) return
+
+  const start = getISTStartOfDay().toISOString()
+  const end = getISTEndOfDay().toISOString()
+  const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).getTime()
+
+  for (const emp of employees) {
+    // Get last attendance log for this employee today
+    const { data: logs } = await serviceClient
+      .from('attendance_logs')
+      .select('type, timestamp')
+      .eq('employee_id', emp.id)
+      .gte('timestamp', start)
+      .lte('timestamp', end)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+
+    const lastLog = logs?.[0]
+
+    // If they are clocked in
+    if (lastLog && lastLog.type === 'check_in') {
+      // Get their last location ping
+      const { data: pings } = await serviceClient
+        .from('location_pings')
+        .select('created_at')
+        .eq('employee_id', emp.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      const lastPing = pings?.[0]
+      const lastActionTime = new Date(lastLog.timestamp).getTime()
+
+      // If they haven't sent a ping in the last 15 minutes, or if they checked in 15+ minutes ago and never sent a ping
+      const needsAutoBreak = lastPing
+        ? (new Date(lastPing.created_at).getTime() < fifteenMinsAgo)
+        : (lastActionTime < fifteenMinsAgo)
+
+      if (needsAutoBreak && emp.outlet_id) {
+        // Insert auto-break log
+        await serviceClient.from('attendance_logs').insert({
+          employee_id: emp.id,
+          outlet_id: emp.outlet_id,
+          type: 'check_out',
+          submitted_lat: 0,
+          submitted_lng: 0,
+          gps_accuracy_meters: 0,
+          distance_from_outlet_meters: 0,
+          status: 'valid',
+          override_reason: 'AUTO_GPS_OFFLINE_BREAK',
+        })
+      }
+    }
+  }
+}
+
