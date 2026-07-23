@@ -170,8 +170,8 @@ export default async function ManagerDashboardPage() {
             </h2>
           </div>
 
-          {/* Mobile View: Scroll-free responsive cards list (block md:hidden) */}
-          <div className="block md:hidden p-4 space-y-3">
+          {/* Mobile View: Scroll-free responsive cards list (block lg:hidden) */}
+          <div className="block lg:hidden p-4 space-y-3">
             {roster.length === 0 ? (
               <div className="py-8 text-center text-slate-500 text-sm">
                 No staff entries found for today.
@@ -272,8 +272,8 @@ export default async function ManagerDashboardPage() {
             )}
           </div>
 
-          {/* Desktop View: Full 6-column table (hidden on mobile, visible on md+) */}
-          <div className="hidden md:block flex-1 overflow-x-auto">
+          {/* Desktop View: Full 6-column table (hidden on mobile/tablet, visible on lg+) */}
+          <div className="hidden lg:block flex-1 overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-300 border-collapse">
               <thead className="text-xs uppercase text-slate-500 font-bold bg-white/[0.02] border-b border-white/5">
                 <tr>
