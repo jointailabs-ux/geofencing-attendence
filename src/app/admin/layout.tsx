@@ -1,9 +1,8 @@
 import { Suspense } from 'react'
+import { getCachedEmployee } from '@/lib/auth'
 import { AdminSidebarWrapper } from '@/components/layout/AdminSidebarWrapper'
 import { AdminBottomNav } from '@/components/layout/AdminBottomNav'
-import { StatusBadge } from '@/components/ui/StatusBadge'
-import { logout } from '@/app/actions/auth'
-import { MapPin, LogOut } from 'lucide-react'
+import { AdminMobileHeader } from '@/components/layout/AdminMobileHeader'
 import { Toaster } from 'sonner'
 import type { Metadata } from 'next'
 
@@ -12,11 +11,14 @@ export const metadata: Metadata = {
   description: 'GeoAttend Admin — Manage outlets, employees, attendance and payroll',
 }
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const employee = await getCachedEmployee()
+  const userName = employee?.full_name || 'Admin'
+
   return (
     <div className="flex h-screen overflow-hidden bg-navy">
       <Suspense fallback={
@@ -31,36 +33,8 @@ export default function AdminLayout({
           backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.06), transparent 50%), radial-gradient(ellipse at 100% 100%, rgba(6,182,212,0.04), transparent 50%)',
         }}>
         
-        {/* Mobile-first top header with glassmorphism (hidden on desktop) */}
-        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 flex-shrink-0"
-          style={{
-            background: 'rgba(17, 24, 39, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderBottom: '1px solid rgba(139, 92, 246, 0.1)',
-          }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)' }}>
-              <MapPin className="w-3.5 h-3.5 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white leading-none">GeoAttend Admin</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusBadge variant="super_admin" size="sm" showDot={false} />
-            <form action={logout}>
-              <button
-                type="submit"
-                className="p-1.5 text-slate-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10"
-                title="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        </header>
+        {/* Mobile Navigation Header & Drawer */}
+        <AdminMobileHeader userName={userName} />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full">
           {children}
