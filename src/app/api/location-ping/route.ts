@@ -228,7 +228,7 @@ export async function POST(req: Request) {
   }
 }
 
-// OwnTracks also sends GET requests for configuration — respond with empty
+// OwnTracks also sends GET requests for configuration — respond with empty array
 export async function GET() {
-  return NextResponse.json({ status: 'GeoAttend OwnTracks Endpoint Active' })
+  return NextResponse.json([])
 }
