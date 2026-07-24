@@ -206,10 +206,10 @@ export default async function StaffProfilePage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-slate-400">
-                    {new Date(log.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    {new Date(log.timestamp).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(log.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>

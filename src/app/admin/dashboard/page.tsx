@@ -16,6 +16,7 @@ import {
   Radio,
   Coffee,
 } from 'lucide-react'
+import { formatISTTime } from '@/lib/utils'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Admin Dashboard - GeoAttend' }
@@ -332,7 +333,7 @@ export default async function AdminDashboardPage() {
                     </div>
                     <div className="text-right font-mono">
                       <p className="text-slate-300 font-semibold">
-                        {new Date(item.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        {formatISTTime(item.timestamp)}
                       </p>
                       <p className="text-[10px] text-slate-500">{item.distanceMeters}m</p>
                     </div>

@@ -15,7 +15,7 @@ export default async function SetupTrackingPage() {
   const hasDevice = status?.device != null
   const isReceivingPings = status?.lastPing != null
   const lastPingTime = status?.lastPing?.created_at
-    ? new Date(status.lastPing.created_at).toLocaleString('en-IN')
+    ? new Date(status.lastPing.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
     : null
 
   // Webhook URL

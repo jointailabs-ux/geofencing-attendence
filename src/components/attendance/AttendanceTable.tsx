@@ -1,5 +1,7 @@
 'use client'
 
+import { formatISTTime, formatISTTimeFull } from '@/lib/utils'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -52,9 +54,9 @@ export function AttendanceTable({ logs, outletName, isAdmin = false }: Attendanc
     
     const rows = logs.map(log => {
       if (isAdmin) {
-        return `"${log.employee?.full_name}","${log.employee?.role}","${log.outlet?.name || ''}","${log.type}","${new Date(log.timestamp).toLocaleTimeString('en-IN')}","${log.status}","${log.distance_from_outlet_meters}m","${log.override_reason || ''}"`
+        return `"${log.employee?.full_name}","${log.employee?.role}","${log.outlet?.name || ''}","${log.type}","${formatISTTimeFull(log.timestamp)}","${log.status}","${log.distance_from_outlet_meters}m","${log.override_reason || ''}"`
       }
-      return `"${log.employee?.full_name}","${log.employee?.role}","${log.type}","${new Date(log.timestamp).toLocaleTimeString('en-IN')}","${log.status}","${log.distance_from_outlet_meters}m","${log.override_reason || ''}"`
+      return `"${log.employee?.full_name}","${log.employee?.role}","${log.type}","${formatISTTimeFull(log.timestamp)}","${log.status}","${log.distance_from_outlet_meters}m","${log.override_reason || ''}"`
     })
     
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join('\n'), ...rows].join('\n')
@@ -122,7 +124,7 @@ export function AttendanceTable({ logs, outletName, isAdmin = false }: Attendanc
                     </span>
                   </td>
                   <td className="p-4 text-slate-300 tabular-nums">
-                    {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    {formatISTTime(log.timestamp)}
                   </td>
                   <td className="p-4">
                     <div className="flex flex-col gap-1">

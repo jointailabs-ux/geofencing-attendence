@@ -68,3 +68,67 @@ export function getISTEndOfDay(date = new Date()): Date {
   return d
 }
 
+// ─── Client-side IST formatting helpers ─────────────────────────────────────
+// All these force timeZone: 'Asia/Kolkata' so the display is always IST,
+// regardless of the user's browser or server timezone.
+
+const IST = 'Asia/Kolkata'
+
+/** Format a date string/Date to IST time like "02:30 PM" */
+export function formatISTTime(dateInput: string | Date, opts?: { hour12?: boolean }): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  return d.toLocaleTimeString('en-IN', {
+    timeZone: IST,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: opts?.hour12 ?? true,
+  })
+}
+
+/** Format a date string/Date to IST time with seconds like "02:30:45 PM" */
+export function formatISTTimeFull(dateInput: string | Date): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  return d.toLocaleTimeString('en-IN', {
+    timeZone: IST,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
+
+/** Format a date string/Date to IST date like "24 Jul 2026" */
+export function formatISTDate(dateInput: string | Date): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  return d.toLocaleDateString('en-IN', {
+    timeZone: IST,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/** Format a date string/Date to IST short date like "24 Jul" */
+export function formatISTDateShort(dateInput: string | Date): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  return d.toLocaleDateString('en-IN', {
+    timeZone: IST,
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+/** Format a date string/Date to IST date+time like "24 Jul 2026, 02:30 PM" */
+export function formatISTDateTime(dateInput: string | Date): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  return d.toLocaleString('en-IN', {
+    timeZone: IST,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+

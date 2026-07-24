@@ -75,6 +75,7 @@ export default async function StaffAttendancePage() {
                     <span className="text-sm text-slate-400">
                       at{' '}
                       {new Date(log.timestamp).toLocaleTimeString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -82,6 +83,7 @@ export default async function StaffAttendancePage() {
                   </div>
                   <div className="text-sm text-slate-500">
                     {new Date(log.timestamp).toLocaleDateString('en-IN', {
+                      timeZone: 'Asia/Kolkata',
                       weekday: 'short',
                       day: 'numeric',
                       month: 'short',

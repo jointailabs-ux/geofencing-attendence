@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { AttendanceLog } from '@/lib/types/database'
+import { formatISTTime, formatISTTimeFull } from '@/lib/utils'
 import { Clock, Play, Pause, LogOut, ShieldCheck, MapPin, Zap } from 'lucide-react'
 
 type ExtendedAttendanceLog = AttendanceLog & {
@@ -71,11 +72,7 @@ export function ShiftTimeTracker({ todayLogs, outletName }: ShiftTimeTrackerProp
   const seconds = Math.floor((activeMs % (1000 * 60)) / 1000)
 
   const clockInTimeStr = firstInLog
-    ? new Date(firstInLog.timestamp).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      })
+    ? formatISTTime(firstInLog.timestamp)
     : '--:--'
 
   let clockOutTimeStr = '--:--'
@@ -89,11 +86,7 @@ export function ShiftTimeTracker({ todayLogs, outletName }: ShiftTimeTrackerProp
   } else {
     if (lastLog.is_final_checkout || lastLog.override_reason === 'FINAL_SHIFT_END') {
       currentStatus = 'SHIFT_ENDED'
-      clockOutTimeStr = new Date(lastLog.timestamp).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      })
+      clockOutTimeStr = formatISTTime(lastLog.timestamp)
     } else {
       currentStatus = 'ON_BREAK'
       clockOutTimeStr = 'On Break'
@@ -279,11 +272,7 @@ export function ShiftTimeTracker({ todayLogs, outletName }: ShiftTimeTrackerProp
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-slate-400 font-mono">
-                      {new Date(log.timestamp).toLocaleTimeString('en-IN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
+                      {formatISTTimeFull(log.timestamp)}
                     </span>
                     <span className="text-[10px] text-slate-500 bg-white/5 px-2 py-0.5 rounded-md">
                       {log.distance_from_outlet_meters}m away

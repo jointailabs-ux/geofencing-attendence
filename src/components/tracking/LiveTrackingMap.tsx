@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { RefreshCw, Battery, Wifi, MapPin, Clock, Signal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatISTTime } from '@/lib/utils'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -200,7 +200,7 @@ export function LiveTrackingMap({ initialData, outlets, orgId }: LiveTrackingMap
         </button>
 
         <span className="text-xs text-slate-500 ml-auto">
-          Last updated: {lastRefresh.toLocaleTimeString('en-IN')} • Auto-refreshes every 30s
+          Last updated: {formatISTTime(lastRefresh)} • Auto-refreshes every 30s
         </span>
       </div>
 

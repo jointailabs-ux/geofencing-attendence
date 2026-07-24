@@ -1,5 +1,7 @@
 'use client'
 
+import { formatISTTime, formatISTTimeFull } from '@/lib/utils'
+
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -57,8 +59,8 @@ export function DailySummaryTable({ summaries, dateStr, isAdmin = false }: Daily
     const headers = ['Employee', 'Role', 'Outlet', 'First Check-in', 'Last Check-out', 'Total Hours', 'Has Flags']
     
     const rows = summaries.map(s => {
-      const firstIn = s.first_check_in ? new Date(s.first_check_in).toLocaleTimeString('en-IN') : '-'
-      const lastOut = s.last_check_out ? new Date(s.last_check_out).toLocaleTimeString('en-IN') : '-'
+      const firstIn = s.first_check_in ? formatISTTimeFull(s.first_check_in) : '-'
+      const lastOut = s.last_check_out ? formatISTTimeFull(s.last_check_out) : '-'
       return `"${s.employee_name}","${s.role}","${s.outlet_name}","${firstIn}","${lastOut}","${s.total_hours.toFixed(2)}","${s.has_flags ? 'Yes' : 'No'}"`
     })
     
@@ -141,11 +143,11 @@ export function DailySummaryTable({ summaries, dateStr, isAdmin = false }: Daily
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 text-sm text-slate-300">
                           <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
-                          <span className="font-mono">{summary.first_check_in ? new Date(summary.first_check_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                          <span className="font-mono">{summary.first_check_in ? formatISTTime(summary.first_check_in) : '--:--'}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-slate-300">
                           <span className="inline-block w-2 h-2 rounded-full bg-slate-500"></span>
-                          <span className="font-mono">{summary.last_check_out ? new Date(summary.last_check_out).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                          <span className="font-mono">{summary.last_check_out ? formatISTTime(summary.last_check_out) : '--:--'}</span>
                         </div>
                       </div>
                     </td>
@@ -196,7 +198,7 @@ export function DailySummaryTable({ summaries, dateStr, isAdmin = false }: Daily
                                     {log.type === 'check_in' ? 'Check In' : 'Check Out'}
                                   </span>
                                   <span className="text-slate-300 font-mono text-sm">
-                                    {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    {formatISTTime(log.timestamp)}
                                   </span>
                                 </div>
                                 
