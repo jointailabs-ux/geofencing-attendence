@@ -139,6 +139,24 @@ export default async function SetupTrackingPage() {
                 </p>
                 <p><strong className="text-white">Password:</strong> <span className="text-slate-500">(leave empty)</span></p>
               </div>
+              {hasDevice && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    href={`owntracks:///config?url=${encodeURIComponent(`${appUrl}/api/devices/config/${status.device.device_token}`)}`}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-violet-600 text-white hover:bg-violet-500 transition-all shadow-lg"
+                  >
+                    ⚡ One-Click Auto-Configure Phone
+                  </a>
+                  <a
+                    href={`${appUrl}/api/devices/config/${status.device.device_token}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 transition-all border border-white/10"
+                  >
+                    📥 Download Settings (.otrc)
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 

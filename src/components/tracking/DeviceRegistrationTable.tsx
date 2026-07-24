@@ -156,12 +156,28 @@ export function DeviceRegistrationTable({ devices, allEmployees, appUrl }: Devic
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => copySetupUrl(d.device_token)}
-                          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"
-                        >
-                          Copy Webhook URL
-                        </button>
+                        <div className="flex flex-col gap-1 items-start">
+                          <button
+                            onClick={() => copySetupUrl(d.device_token)}
+                            className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors font-medium"
+                          >
+                            Copy Webhook URL
+                          </button>
+                          <a
+                            href={`owntracks:///config?url=${encodeURIComponent(`${appUrl}/api/devices/config/${d.device_token}`)}`}
+                            className="text-[10px] text-violet-400 hover:text-violet-300 underline transition-colors font-medium flex items-center gap-0.5"
+                          >
+                            ⚡ Auto-Configure Phone
+                          </a>
+                          <a
+                            href={`${appUrl}/api/devices/config/${d.device_token}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-slate-400 hover:text-slate-300 underline transition-colors font-medium flex items-center gap-0.5"
+                          >
+                            📥 Download Settings (.otrc)
+                          </a>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
