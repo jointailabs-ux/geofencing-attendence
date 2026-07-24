@@ -92,26 +92,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Employee not found or inactive.' }, { status: 404 })
     }
 
-    // Verify if employee is currently clocked in today (shift is active)
-    const start = getISTStartOfDay().toISOString()
-    const end = getISTEndOfDay().toISOString()
-
-    const { data: logs } = await supabase
-      .from('attendance_logs')
-      .select('type')
-      .eq('employee_id', employee.id)
-      .gte('timestamp', start)
-      .lte('timestamp', end)
-      .order('timestamp', { ascending: false })
-      .limit(1)
-
-    const isClockedIn = logs && logs.length > 0 && logs[0].type === 'check_in'
-
-    if (!isClockedIn) {
-      // Discard location ping to respect privacy outside shift hours.
-      return NextResponse.json([])
-    }
-
     // 5. Geofence check
     let isInsideGeofence = false
     let nearestOutletId: string | null = null
@@ -133,7 +113,46 @@ export async function POST(req: Request) {
       nearestOutletId = outlet.id
     }
 
-    // 6. Store the ping
+    // 6. Get today's latest attendance log to check shift state
+    const start = getISTStartOfDay().toISOString()
+    const end = getISTEndOfDay().toISOString()
+
+    const { data: lastLogs } = await supabase
+      .from('attendance_logs')
+      .select('type')
+      .eq('employee_id', employee.id)
+      .gte('timestamp', start)
+      .lte('timestamp', end)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+
+    const lastLog = lastLogs?.[0]
+    const isClockedIn = lastLog && lastLog.type === 'check_in'
+
+    // If clocked out/not working, check if they can auto-resume (are they inside the geofence on an active day?)
+    if (!isClockedIn) {
+      const canResume = lastLog && lastLog.type === 'check_out' && isInsideGeofence
+
+      if (canResume && employee.outlet_id) {
+        // Auto-resume shift: Insert check_in log
+        await supabase.from('attendance_logs').insert({
+          employee_id: device.employee_id,
+          outlet_id: employee.outlet_id,
+          type: 'check_in',
+          submitted_lat: body.lat,
+          submitted_lng: body.lon,
+          gps_accuracy_meters: body.acc || 0,
+          distance_from_outlet_meters: distanceFromOutlet || 0,
+          status: 'valid',
+          override_reason: 'AUTO_OWNTRACKS_RESUME_DETECTED',
+        })
+      } else {
+        // Discard ping entirely to respect privacy outside shift hours.
+        return NextResponse.json([])
+      }
+    }
+
+    // 7. Store the location ping (now that they are clocked in / resumed)
     const { error: insertErr } = await supabase.from('location_pings').insert({
       employee_id: device.employee_id,
       latitude: body.lat,
@@ -153,70 +172,33 @@ export async function POST(req: Request) {
       console.error('Error inserting location ping:', insertErr.message)
     }
 
-    // 7. Auto break/resume detection
-    if (employee.outlet_id) {
-      // Reuse outer start and end dates
-
-      // Get today's last attendance log
-      const { data: lastLogs } = await supabase
-        .from('attendance_logs')
-        .select('id, type, timestamp')
+    // 8. Auto break detection (only if employee is clocked in and left the geofence)
+    if (employee.outlet_id && isClockedIn && !isInsideGeofence) {
+      // Check if they've been outside for AUTO_BREAK_THRESHOLD_SECONDS
+      const { data: recentPings } = await supabase
+        .from('location_pings')
+        .select('is_inside_geofence, created_at')
         .eq('employee_id', device.employee_id)
-        .gte('timestamp', start)
-        .lte('timestamp', end)
-        .order('timestamp', { ascending: false })
-        .limit(1)
+        .gte('created_at', new Date(Date.now() - AUTO_BREAK_THRESHOLD_SECONDS * 1000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-      const lastLog = lastLogs?.[0]
+      const allOutside = recentPings && recentPings.length >= 3 &&
+        recentPings.every(p => !p.is_inside_geofence)
 
-      if (lastLog) {
-        // Employee is checked in and just left geofence → auto-break
-        if (lastLog.type === 'check_in' && !isInsideGeofence) {
-          // Check if they've been outside for AUTO_BREAK_THRESHOLD_SECONDS
-          const { data: recentPings } = await supabase
-            .from('location_pings')
-            .select('is_inside_geofence, created_at')
-            .eq('employee_id', device.employee_id)
-            .gte('created_at', new Date(Date.now() - AUTO_BREAK_THRESHOLD_SECONDS * 1000).toISOString())
-            .order('created_at', { ascending: false })
-            .limit(5)
-
-          const allOutside = recentPings && recentPings.length >= 3 &&
-            recentPings.every(p => !p.is_inside_geofence)
-
-          if (allOutside && employee.outlet_id) {
-            // Insert auto-break checkout
-            await supabase.from('attendance_logs').insert({
-              employee_id: device.employee_id,
-              outlet_id: employee.outlet_id,
-              type: 'check_out',
-              submitted_lat: body.lat,
-              submitted_lng: body.lon,
-              gps_accuracy_meters: body.acc || 0,
-              distance_from_outlet_meters: distanceFromOutlet || 0,
-              status: 'valid',
-              override_reason: 'AUTO_OWNTRACKS_BREAK_DETECTED',
-            })
-          }
-        }
-
-        // Employee was on break and just re-entered geofence → auto-resume
-        if (lastLog.type === 'check_out' && isInsideGeofence) {
-          const lastCheckoutReason = lastLog.type === 'check_out' ? 'break' : null
-          if (lastCheckoutReason && employee.outlet_id) {
-            await supabase.from('attendance_logs').insert({
-              employee_id: device.employee_id,
-              outlet_id: employee.outlet_id,
-              type: 'check_in',
-              submitted_lat: body.lat,
-              submitted_lng: body.lon,
-              gps_accuracy_meters: body.acc || 0,
-              distance_from_outlet_meters: distanceFromOutlet || 0,
-              status: 'valid',
-              override_reason: 'AUTO_OWNTRACKS_RESUME_DETECTED',
-            })
-          }
-        }
+      if (allOutside && employee.outlet_id) {
+        // Insert auto-break checkout
+        await supabase.from('attendance_logs').insert({
+          employee_id: device.employee_id,
+          outlet_id: employee.outlet_id,
+          type: 'check_out',
+          submitted_lat: body.lat,
+          submitted_lng: body.lon,
+          gps_accuracy_meters: body.acc || 0,
+          distance_from_outlet_meters: distanceFromOutlet || 0,
+          status: 'valid',
+          override_reason: 'AUTO_OWNTRACKS_BREAK_DETECTED',
+        })
       }
     }
 
