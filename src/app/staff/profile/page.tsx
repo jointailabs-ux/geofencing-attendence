@@ -3,7 +3,7 @@ import { getCachedUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { getEmployeeAttendanceHistory } from '@/app/actions/attendance'
-import { User, Mail, Phone, MapPin, Calendar, Briefcase, Hash, Clock } from 'lucide-react'
+import { User, Mail, Phone, MapPin, Calendar, Briefcase, Hash, Clock, Smartphone } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'My Profile' }
@@ -113,6 +113,37 @@ export default async function StaffProfilePage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Location Tracking Card */}
+      <div
+        className="rounded-2xl p-5 space-y-3"
+        style={{
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(6,182,212,0.04), rgba(10,15,30,0.9))',
+          border: '1px solid rgba(139,92,246,0.2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-violet-400" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-violet-400">
+              Location Tracking Setup
+            </h2>
+          </div>
+          <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
+            OwnTracks
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Configure location tracking on your phone to automatically register attendance when entering and leaving geofenced outlets.
+        </p>
+        <a
+          href="/staff/setup-tracking"
+          className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition-all shadow-md"
+        >
+          📱 Auto-Configure Phone Tracking →
+        </a>
       </div>
 
       {/* Salary & Mediclaim Payroll Card */}
