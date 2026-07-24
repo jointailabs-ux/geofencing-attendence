@@ -20,16 +20,28 @@ interface OwnTracksPayload {
 // Auto-break threshold: if outside geofence for this many seconds
 const AUTO_BREAK_THRESHOLD_SECONDS = 300 // 5 minutes
 
+// CRITICAL: OwnTracks Android ONLY accepts JSON arrays as responses.
+// Any JSON object (e.g. {error: "..."}) will crash the parser with:
+//   java.io.IOException: Failed to parse JSON
+// So EVERY response path in this file MUST return NextResponse.json([])
+const OK = () => NextResponse.json([])
+
 export async function POST(req: Request) {
   try {
     const supabase = createServiceClient()
 
     // 1. Parse OwnTracks payload
-    const body: OwnTracksPayload = await req.json()
+    let body: OwnTracksPayload
+    try {
+      body = await req.json()
+    } catch {
+      // Malformed JSON body — still must return array
+      return OK()
+    }
 
-    // Ignore non-location messages
+    // Ignore non-location messages (waypoints, transitions, lwt, etc.)
     if (body._type !== 'location' || !body.lat || !body.lon) {
-      return NextResponse.json({ status: 'ignored', reason: 'not a location message' })
+      return OK()
     }
 
     // 2. Authenticate via HTTP Basic Auth header (username = device_token)
@@ -53,7 +65,8 @@ export async function POST(req: Request) {
     }
 
     if (!deviceToken) {
-      return NextResponse.json({ error: 'Missing device token. Configure OwnTracks username as your device token.' }, { status: 401 })
+      console.error('OwnTracks: Missing device token in request')
+      return OK()
     }
 
     // 3. Look up device registration
@@ -65,7 +78,8 @@ export async function POST(req: Request) {
       .single()
 
     if (deviceErr || !device) {
-      return NextResponse.json({ error: 'Unknown or inactive device token.' }, { status: 401 })
+      console.error('OwnTracks: Unknown device token:', deviceToken)
+      return OK()
     }
 
     // Update last_seen_at
@@ -89,7 +103,8 @@ export async function POST(req: Request) {
       .single()
 
     if (!employee || employee.status !== 'active') {
-      return NextResponse.json({ error: 'Employee not found or inactive.' }, { status: 404 })
+      console.error('OwnTracks: Employee not found or inactive for device:', deviceToken)
+      return OK()
     }
 
     // 5. Geofence check
@@ -148,7 +163,7 @@ export async function POST(req: Request) {
         })
       } else {
         // Discard ping entirely to respect privacy outside shift hours.
-        return NextResponse.json([])
+        return OK()
       }
     }
 
@@ -202,15 +217,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Return empty array standard response to satisfy OwnTracks client
-    return NextResponse.json([])
+    return OK()
   } catch (err) {
     console.error('Location ping error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // MUST return array even on crash — never return an object
+    return OK()
   }
 }
 
 // OwnTracks also sends GET requests for configuration — respond with empty array
 export async function GET() {
-  return NextResponse.json([])
+  return OK()
 }
