@@ -1,6 +1,7 @@
 import { getCachedEmployee } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { getMyDeviceStatus } from '@/app/actions/tracking'
+import { getMyDeviceStatus, generateDeviceToken } from '@/app/actions/tracking'
+import { revalidatePath } from 'next/cache'
 import { CheckCircle2, Radio, Download, Settings, ArrowRight, Wifi } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -21,6 +22,14 @@ export default async function SetupTrackingPage() {
   // Webhook URL
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
   const webhookUrl = hasDevice ? `${appUrl}/api/location-ping?token=${status.device.device_token}` : null
+
+  async function handleRegisterDevice() {
+    'use server'
+    if (employee) {
+      await generateDeviceToken(employee.id)
+      revalidatePath('/staff/setup-tracking')
+    }
+  }
 
   return (
     <div className="animate-fade-in space-y-6 pb-12">
@@ -75,9 +84,19 @@ export default async function SetupTrackingPage() {
           </p>
         )}
         {!hasDevice && (
-          <p className="text-xs text-slate-500 mt-1">
-            Ask your admin to generate a device token for you. Once set up, your location will be tracked automatically.
-          </p>
+          <div className="space-y-3 mt-1">
+            <p className="text-xs text-slate-500">
+              No device has been registered for your account. You can register your current phone to get started.
+            </p>
+            <form action={handleRegisterDevice}>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition-all shadow-md active:scale-95"
+              >
+                📱 Register This Phone
+              </button>
+            </form>
+          </div>
         )}
       </div>
 

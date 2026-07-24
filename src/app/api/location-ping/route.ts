@@ -18,7 +18,7 @@ interface OwnTracksPayload {
 }
 
 // Auto-break threshold: if outside geofence for this many seconds
-const AUTO_BREAK_THRESHOLD_SECONDS = 300 // 5 minutes
+const AUTO_BREAK_THRESHOLD_SECONDS = 120 // 2 minutes
 
 // CRITICAL: OwnTracks Android ONLY accepts JSON arrays as responses.
 // Any JSON object (e.g. {error: "..."}) will crash the parser with:
@@ -198,7 +198,7 @@ export async function POST(req: Request) {
         .order('created_at', { ascending: false })
         .limit(5)
 
-      const allOutside = recentPings && recentPings.length >= 3 &&
+      const allOutside = recentPings && recentPings.length >= 2 &&
         recentPings.every(p => !p.is_inside_geofence)
 
       if (allOutside && employee.outlet_id) {

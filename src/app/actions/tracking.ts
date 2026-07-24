@@ -247,7 +247,7 @@ export async function autoCheckOutOfflineEmployees() {
 
   const start = getISTStartOfDay().toISOString()
   const end = getISTEndOfDay().toISOString()
-  const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).getTime()
+  const offlineThresholdTime = new Date(Date.now() - 4 * 60 * 1000).getTime()
 
   for (const emp of employees) {
     // Get last attendance log for this employee today
@@ -275,10 +275,10 @@ export async function autoCheckOutOfflineEmployees() {
       const lastPing = pings?.[0]
       const lastActionTime = new Date(lastLog.timestamp).getTime()
 
-      // If they haven't sent a ping in the last 15 minutes, or if they checked in 15+ minutes ago and never sent a ping
+      // If they haven't sent a ping in the last 4 minutes, or if they checked in 4+ minutes ago and never sent a ping
       const needsAutoBreak = lastPing
-        ? (new Date(lastPing.created_at).getTime() < fifteenMinsAgo)
-        : (lastActionTime < fifteenMinsAgo)
+        ? (new Date(lastPing.created_at).getTime() < offlineThresholdTime)
+        : (lastActionTime < offlineThresholdTime)
 
       if (needsAutoBreak && emp.outlet_id) {
         // Insert auto-break log
