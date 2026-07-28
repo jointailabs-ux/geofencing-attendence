@@ -457,7 +457,7 @@ export function LiveTrackingMap({ initialData, outlets, orgId }: LiveTrackingMap
             ))}
 
             {/* Employee GPS markers */}
-            {filtered.map(d => {
+            {processedData.map(d => {
               if (!d.lastPing) return null
               const isOffline = checkIsOffline(d.lastPing.created_at)
               const icon = isOffline
