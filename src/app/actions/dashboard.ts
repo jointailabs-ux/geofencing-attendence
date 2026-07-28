@@ -454,7 +454,7 @@ export async function getStaffDashboardStats(employeeId: string) {
       .gte('end_date', startOfMonth.split('T')[0]),
     supabase
       .from('leave_balances')
-      .select('total_days, used_days, leave_type:leave_types(name)')
+      .select('allocated_days, used_days, leave_type:leave_types(name)')
       .eq('employee_id', employeeId),
     supabase
       .from('payroll_line_items')
@@ -496,7 +496,7 @@ export async function getStaffDashboardStats(employeeId: string) {
     },
     balances: balances?.map(b => ({
       name: (b.leave_type as unknown as { name: string })?.name,
-      available: b.total_days - b.used_days
+      available: b.allocated_days - b.used_days
     })) || [],
     latestPayslip: latestPayslipData
   }

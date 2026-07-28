@@ -135,26 +135,28 @@ export async function cancelLeaveRequest(requestId: string, employeeId: string) 
 export async function getPendingLeaveRequests(orgId: string, outletId?: string | null) {
   const supabase = await createClient()
   
-  const query = supabase
+  let query = supabase
     .from('leave_requests')
-    .select('*, employee:employees!leave_requests_employee_id_fkey(id, full_name, role, outlet_id), leave_type:leave_types(*)')
+    .select('*, employee:employees!leave_requests_employee_id_fkey!inner(id, full_name, role, outlet_id, org_id), leave_type:leave_types(*)')
     .eq('status', 'pending')
-    .order('created_at', { ascending: true })
+    .eq('employee.org_id', orgId)
 
-  const { data, error } = await query
+  if (outletId) {
+    query = query.eq('employee.outlet_id', outletId)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true })
 
   if (error) {
     console.error('Error fetching pending requests:', error)
     return []
   }
 
-  let filtered = data as unknown as LeaveRequest[]
-  if (outletId) {
-    filtered = filtered.filter(r => r.employee?.outlet_id === outletId)
-  }
-
-  return filtered as unknown as LeaveRequest[]
+  return data as unknown as LeaveRequest[]
 }
+
+import { sendNotification } from '@/lib/notify'
+import { logAuditAction } from '@/lib/audit'
 
 export async function resolveLeaveRequest(
   requestId: string,
@@ -166,13 +168,17 @@ export async function resolveLeaveRequest(
 
   const { data: request } = await supabase
     .from('leave_requests')
-    .select('*')
+    .select('*, employee:employees(org_id, full_name), leave_type:leave_types(name)')
     .eq('id', requestId)
     .single()
 
   if (!request || request.status !== 'pending') {
     throw new Error('Request not found or already resolved')
   }
+
+  const employeeInfo = request.employee as unknown as { org_id: string; full_name: string } | null
+  const leaveTypeInfo = request.leave_type as unknown as { name: string } | null
+  const orgId = employeeInfo?.org_id || ''
 
   const start = new Date(request.start_date)
   const end = new Date(request.end_date)
@@ -211,6 +217,34 @@ export async function resolveLeaveRequest(
   if (error) {
     throw new Error('Failed to resolve request')
   }
+
+  // 1. Send in-app notification to the employee
+  const statusLabel = resolution === 'approved' ? 'Approved' : 'Rejected'
+  await sendNotification({
+    employeeId: request.employee_id,
+    title: `Leave Request ${statusLabel}`,
+    message: `Your request for ${leaveTypeInfo?.name || 'Leave'} from ${request.start_date} to ${request.end_date} has been ${resolution}.${comment ? ` Reason: "${comment}"` : ''}`,
+    type: resolution === 'approved' ? 'success' : 'warning',
+    actionUrl: '/staff/leave',
+  })
+
+  // 2. Write to admin audit logs
+  await logAuditAction({
+    orgId,
+    actorId: approverId,
+    action: `leave.${resolution}`,
+    targetType: 'leave_request',
+    targetId: requestId,
+    details: {
+      employee_id: request.employee_id,
+      employee_name: employeeInfo?.full_name,
+      leave_type: leaveTypeInfo?.name,
+      start_date: request.start_date,
+      end_date: request.end_date,
+      days: diffDays,
+      comment,
+    },
+  })
 
   return { success: true }
 }

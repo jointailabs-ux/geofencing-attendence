@@ -159,6 +159,44 @@ export interface PayrollLineItem {
 
 // ─── Session / auth types ────────────────────────────────────────────────────
 
+export interface AuditLog {
+  id: string
+  org_id: string
+  actor_id: string
+  action: string
+  target_type: string | null
+  target_id: string | null
+  details: Record<string, unknown>
+  ip_address: string | null
+  created_at: string
+  
+  // Joined fields
+  actor?: Pick<Employee, 'id' | 'full_name' | 'role'>
+}
+
+export interface Notification {
+  id: string
+  employee_id: string
+  title: string
+  message: string
+  type: 'info' | 'success' | 'warning' | 'leave' | 'payroll' | 'attendance'
+  is_read: boolean
+  action_url: string | null
+  created_at: string
+}
+
+export interface ShiftSchedule {
+  id: string
+  org_id: string
+  outlet_id: string | null
+  name: string
+  start_time: string
+  end_time: string
+  grace_minutes: number
+  is_default: boolean
+  created_at: string
+}
+
 export interface UserSession {
   id: string
   email: string

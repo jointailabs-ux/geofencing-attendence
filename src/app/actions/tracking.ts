@@ -68,25 +68,18 @@ export async function generateDeviceToken(employeeId: string) {
   return { success: true, token }
 }
 
-// Get all device registrations for the org
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getDeviceRegistrations(orgId: string) {
   const serviceClient = createServiceClient()
 
   const { data, error } = await serviceClient
     .from('device_registrations')
-    .select('*, employee:employees(id, full_name, role, email, employee_code, outlet_id, outlets(name))')
+    .select('*, employee:employees!inner(id, full_name, role, email, employee_code, outlet_id, org_id, outlets(name))')
     .eq('is_active', true)
+    .eq('employee.org_id', orgId)
 
   if (error) throw new Error('Failed to fetch devices: ' + error.message)
 
-  // Filter to only employees in this org
-  const filtered = (data || []).filter((d) => {
-    const emp = d.employee as unknown as { outlet_id: string } | null
-    return emp !== null
-  })
-
-  return filtered
+  return data || []
 }
 
 // Get latest ping per employee for live map

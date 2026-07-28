@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { calculatePayrollForEmployee, type PayrollEmployee, type PayrollAttendance } from '@/lib/payroll/calculate'
 import type { PayrollRun, PayrollLineItem } from '@/lib/types/database'
+import { sendNotification } from '@/lib/notify'
+import { logAuditAction } from '@/lib/audit'
 
 export async function generateDraftPayroll(orgId: string, month: number, year: number, mediclaimPct: number = 10) {
   const supabase = await createClient()
@@ -251,6 +253,13 @@ export async function finalizePayrollRun(runId: string) {
 
   const { data: employee } = await supabase.from('employees').select('id').eq('auth_user_id', user.id).single()
 
+  // Fetch run details to get the list of employee IDs and period information
+  const { data: run } = await supabase
+    .from('payroll_runs')
+    .select('org_id, month, year, payroll_line_items(employee_id)')
+    .eq('id', runId)
+    .single()
+
   const { error } = await supabase
     .from('payroll_runs')
     .update({ 
@@ -261,6 +270,40 @@ export async function finalizePayrollRun(runId: string) {
     .eq('id', runId)
 
   if (error) throw new Error('Failed to finalize run')
+
+  if (run) {
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ]
+    const period = `${monthNames[run.month - 1]} ${run.year}`
+    const lineItems = (run.payroll_line_items as unknown as { employee_id: string }[]) || []
+
+    // 1. Notify all employees included in this payroll run
+    await Promise.all(
+      lineItems.map(item =>
+        sendNotification({
+          employeeId: item.employee_id,
+          title: 'Payslip Released',
+          message: `Your payslip for ${period} has been released and is available for download.`,
+          type: 'payroll',
+          actionUrl: '/staff/payslips',
+        })
+      )
+    )
+
+    // 2. Log this action to the audit logs
+    if (employee) {
+      await logAuditAction({
+        orgId: run.org_id,
+        actorId: employee.id,
+        action: 'payroll.finalized',
+        targetType: 'payroll_run',
+        targetId: runId,
+        details: { month: run.month, year: run.year, total_employees: lineItems.length },
+      })
+    }
+  }
 
   revalidatePath('/staff/payslips')
   revalidatePath('/staff/profile')

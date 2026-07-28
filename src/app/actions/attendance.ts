@@ -159,13 +159,20 @@ export async function getDailyAttendanceSummary(orgId: string, dateStr: string):
 
   const outletMap = new Map(outlets?.map(o => [o.id, o.name]))
 
-  // Fetch logs for the entire day (00:00 to 23:59:59)
+  // Calculate start and end of the day in IST timezone, then convert to UTC ISO strings
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+  startOfDay.setMinutes(startOfDay.getMinutes() - 330) // Offset by 5.5 hours for IST
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+  endOfDay.setMinutes(endOfDay.getMinutes() - 330)
+
+  // Fetch logs for the entire day (00:00 to 23:59:59 IST)
   const { data: logs, error } = await supabase
     .from('attendance_logs')
     .select('*, employee:employees!attendance_logs_employee_id_fkey(full_name, role), outlet:outlets(name)')
     .in('outlet_id', outletIds)
-    .gte('timestamp', `${dateStr}T00:00:00.000Z`)
-    .lte('timestamp', `${dateStr}T23:59:59.999Z`)
+    .gte('timestamp', startOfDay.toISOString())
+    .lte('timestamp', endOfDay.toISOString())
     .order('timestamp', { ascending: true }) // Ascending for chronological processing
 
   if (error) {

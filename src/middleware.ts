@@ -56,8 +56,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Retrieve user role from cookie (set during login)
-  const role = request.cookies.get('user_role')?.value ?? 'staff'
+  // ── Secure role resolution ──────────────────────────────────────────────
+  // Read role from Supabase JWT app_metadata (set by DB trigger on employees table).
+  // This is tamper-proof because it's signed inside the JWT by Supabase.
+  // Falls back to the cookie only as a last resort (backward compat during migration).
+  const jwtRole = user?.app_metadata?.role as string | undefined
+  const cookieRole = request.cookies.get('user_role')?.value
+  const role = jwtRole || cookieRole || 'staff'
 
   // Logged in + on public route → redirect to appropriate dashboard
   if (user && isPublic && pathname !== '/auth/callback') {
