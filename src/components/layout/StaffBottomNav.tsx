@@ -17,52 +17,53 @@ export function StaffBottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 safe-area-pb"
-      style={{
-        background: 'rgba(10, 15, 30, 0.85)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        borderTop: '1px solid rgba(139, 92, 246, 0.08)',
-        boxShadow: '0 -4px 30px rgba(0,0,0,0.3)',
-      }}>
-      <div className="flex items-stretch h-16">
-        {staffNavItems.map(({ href, label, icon: Icon, color, bg }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 relative',
-                isActive ? 'text-white' : 'text-slate-500'
-              )}
-            >
-              {/* Active pill indicator */}
-              {isActive && (
-                <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full"
-                  style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
-              )}
-
-              <div className={cn(
-                'p-1.5 rounded-xl transition-all duration-200',
-                isActive && 'scale-110'
-              )}
-                style={isActive ? { background: bg } : {}}>
-                <Icon
-                  className="w-5 h-5 transition-colors duration-200"
-                  style={isActive ? { color } : {}}
-                />
-              </div>
-              <span
-                className={cn('text-[10px] font-medium transition-colors duration-200')}
-                style={isActive ? { color } : {}}
+    <div className="fixed bottom-4 left-4 right-4 z-30 max-w-md mx-auto safe-area-pb">
+      <nav className="rounded-3xl border border-white/10"
+        style={{
+          background: 'rgba(10, 15, 30, 0.85)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05)',
+        }}>
+        <div className="flex items-stretch h-16 px-2">
+          {staffNavItems.map(({ href, label, icon: Icon, color, bg }) => {
+            const isActive = pathname === href || pathname.startsWith(href + '/')
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 relative',
+                  isActive ? 'text-white' : 'text-slate-500'
+                )}
               >
-                {label}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
-    </nav>
+                {/* Active indicator */}
+                {isActive && (
+                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-1 rounded-full"
+                    style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
+                )}
+
+                <div className={cn(
+                  'p-1.5 rounded-xl transition-all duration-200 mt-1',
+                  isActive && 'scale-110'
+                )}
+                  style={isActive ? { background: bg } : {}}>
+                  <Icon
+                    className="w-5 h-5 transition-colors duration-200"
+                    style={isActive ? { color } : {}}
+                  />
+                </div>
+                <span
+                  className={cn('text-[9px] font-semibold transition-colors duration-200')}
+                  style={isActive ? { color } : {}}
+                >
+                  {label}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+    </div>
   )
 }

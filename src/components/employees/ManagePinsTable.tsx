@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { adminResetPassword } from '@/app/actions/auth'
 import { toast } from 'sonner'
-import { Loader2, KeyRound, Check } from 'lucide-react'
+import { Loader2, KeyRound, Check, Eye, EyeOff } from 'lucide-react'
 
 type ManagePinEmployee = {
   id: string
@@ -16,6 +16,7 @@ type ManagePinEmployee = {
 
 export function ManagePinsTable({ employees }: { employees: ManagePinEmployee[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [visiblePinId, setVisiblePinId] = useState<string | null>(null)
   const [newPin, setNewPin] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -78,7 +79,18 @@ export function ManagePinsTable({ employees }: { employees: ManagePinEmployee[] 
                       autoFocus
                     />
                   ) : (
-                    <span className="font-mono tracking-widest text-slate-400">••••••</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono tracking-widest text-slate-200">
+                        {visiblePinId === employee.id ? employee.pin || 'N/A' : '••••••'}
+                      </span>
+                      <button
+                        onClick={() => setVisiblePinId(visiblePinId === employee.id ? null : employee.id)}
+                        className="text-slate-400 hover:text-white transition-colors p-1"
+                        title={visiblePinId === employee.id ? 'Hide PIN' : 'Show PIN'}
+                      >
+                        {visiblePinId === employee.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">

@@ -22,7 +22,7 @@ export default function StaffLayout({
       </Suspense>
 
       {/* Page content */}
-      <main className="flex-1 pb-20 px-4 py-5 max-w-lg mx-auto w-full">
+      <main className="flex-1 pb-28 px-4 py-5 max-w-lg mx-auto w-full">
         {children}
       </main>
 
