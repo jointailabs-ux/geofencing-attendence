@@ -15,6 +15,8 @@ import {
   MapPin,
   Mail,
   Trash2,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 
 interface EmployeeTableProps {
@@ -30,6 +32,7 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
   const [filterRole, setFilterRole] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
   const filtered = employees.filter((emp) => {
     const matchSearch =
@@ -77,55 +80,199 @@ export function EmployeeTable({ employees, outlets, basePath }: EmployeeTablePro
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3 p-4 rounded-3xl bg-white/[0.02] border border-white/5 shadow-xl backdrop-blur-xl">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by name, email, code…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-all"
-          />
+      {/* Filters and View Switcher */}
+      <div className="flex flex-col lg:flex-row gap-4 p-4 rounded-3xl bg-white/[0.02] border border-white/5 shadow-xl backdrop-blur-xl justify-between items-stretch lg:items-center">
+        <div className="flex flex-col md:flex-row gap-3 flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, code…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-all"
+            />
+          </div>
+          <div className="flex flex-wrap sm:flex-nowrap gap-3">
+            <select
+              value={filterOutlet}
+              onChange={(e) => setFilterOutlet(e.target.value)}
+              className="flex-1 sm:w-40 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900">All Outlets</option>
+              {outlets.map((o) => (
+                <option key={o.id} value={o.id} className="bg-slate-900">{o.name}</option>
+              ))}
+            </select>
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              className="flex-1 sm:w-36 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900">All Roles</option>
+              <option value="super_admin" className="bg-slate-900">Super Admin</option>
+              <option value="manager" className="bg-slate-900">Manager</option>
+              <option value="staff" className="bg-slate-900">Staff</option>
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="flex-1 sm:w-36 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900">All Statuses</option>
+              <option value="active" className="bg-slate-900">Active</option>
+              <option value="inactive" className="bg-slate-900">Inactive</option>
+            </select>
+          </div>
         </div>
-        <div className="flex flex-wrap sm:flex-nowrap gap-3">
-          <select
-            value={filterOutlet}
-            onChange={(e) => setFilterOutlet(e.target.value)}
-            className="flex-1 sm:w-40 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all appearance-none cursor-pointer"
+
+        {/* View Toggle */}
+        <div className="flex items-center gap-1 bg-white/[0.03] p-1.5 rounded-2xl border border-white/5 self-end lg:self-auto">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-2 rounded-xl transition-all ${
+              viewMode === 'grid'
+                ? 'bg-violet-600/20 text-violet-400 border border-violet-500/20 shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Grid View"
           >
-            <option value="" className="bg-slate-900">All Outlets</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id} className="bg-slate-900">{o.name}</option>
-            ))}
-          </select>
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="flex-1 sm:w-36 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none cursor-pointer"
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={`p-2 rounded-xl transition-all ${
+              viewMode === 'table'
+                ? 'bg-violet-600/20 text-violet-400 border border-violet-500/20 shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Table View"
           >
-            <option value="" className="bg-slate-900">All Roles</option>
-            <option value="super_admin" className="bg-slate-900">Super Admin</option>
-            <option value="manager" className="bg-slate-900">Manager</option>
-            <option value="staff" className="bg-slate-900">Staff</option>
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="flex-1 sm:w-36 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none cursor-pointer"
-          >
-            <option value="" className="bg-slate-900">All Statuses</option>
-            <option value="active" className="bg-slate-900">Active</option>
-            <option value="inactive" className="bg-slate-900">Inactive</option>
-          </select>
+            <List className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Grid of Cards */}
+      {/* Grid or Table List */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 rounded-3xl bg-white/[0.01] border border-white/5">
           <p className="text-slate-400">No employees found matching the filters.</p>
+        </div>
+      ) : viewMode === 'table' ? (
+        <div className="geo-card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-300">
+              <thead className="text-xs uppercase bg-[#182136] text-slate-400 border-b border-[#2A3650]">
+                <tr>
+                  <th className="px-6 py-4 font-semibold">Employee</th>
+                  <th className="px-6 py-4 font-semibold">Email & Info</th>
+                  <th className="px-6 py-4 font-semibold">Assigned Outlet</th>
+                  <th className="px-6 py-4 font-semibold">Role</th>
+                  <th className="px-6 py-4 font-semibold">Status</th>
+                  <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#2A3650]">
+                {filtered.map((emp) => {
+                  const outletsObj = emp.outlets as unknown as { name?: string } | undefined
+                  const outletObj = emp.outlet as unknown as { name?: string } | undefined
+                  const outletName = outletsObj?.name || outletObj?.name || 'Unassigned'
+                  return (
+                    <tr key={emp.id} className="hover:bg-[#182136]/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-violet-600/10 border border-violet-500/20 text-violet-400 flex items-center justify-center font-bold text-sm">
+                            {emp.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="block font-semibold text-white">{emp.full_name}</span>
+                            <span className="text-xs font-semibold text-slate-500 font-mono">{emp.employee_code || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-300 font-medium">
+                        <span className="block">{emp.email}</span>
+                        <span className="text-xs text-slate-500">{emp.phone || 'No phone number'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-500/5 text-cyan-300 border border-cyan-500/15">
+                          <MapPin className="w-3.5 h-3.5" />
+                          {outletName}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge variant={emp.role} size="sm" showDot={false} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge variant={emp.status} size="sm" />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`${basePath}/employees/${emp.id}/edit`}
+                            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Link>
+
+                          {emp.status === 'active' ? (
+                            <button
+                              onClick={() => handleDeactivate(emp.id)}
+                              disabled={loadingId === emp.id}
+                              className="p-1.5 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-400 rounded-lg transition-colors"
+                              title="Deactivate"
+                            >
+                              {loadingId === emp.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserX className="w-3.5 h-3.5" />}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleReactivate(emp.id)}
+                              disabled={loadingId === emp.id}
+                              className="p-1.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors"
+                              title="Reactivate"
+                            >
+                              {loadingId === emp.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+
+                          <div className="relative">
+                            {deleteConfirmId === emp.id ? (
+                              <div className="absolute bottom-full right-0 mb-2 w-48 p-3 bg-rose-950/95 backdrop-blur-xl rounded-xl border border-rose-500/50 shadow-2xl z-30 space-y-2 text-left">
+                                <p className="text-[11px] font-bold text-white">Permanently delete staff?</p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleDelete(emp.id)}
+                                    disabled={loadingId === emp.id}
+                                    className="flex-1 bg-rose-600 text-white text-[10px] font-bold py-1 rounded-lg hover:bg-rose-500 transition-colors flex justify-center"
+                                  >
+                                    {loadingId === emp.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Delete'}
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="flex-1 bg-white/20 text-white text-[10px] font-bold py-1 rounded-lg hover:bg-white/30"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                            <button
+                              onClick={() => setDeleteConfirmId(emp.id)}
+                              className="p-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
